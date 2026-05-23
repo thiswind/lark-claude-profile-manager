@@ -67,7 +67,7 @@ def _create_profile(name: str, desktop: str | None, install: bool) -> None:
             raise typer.Exit(1) from exc
         raise
     store.save_profile(profile)
-    container.start()
+    adapter.start(profile)
     typer.echo(f"created: {profile.container.name}")
     if install:
         for result in install_runtime(adapter, profile):

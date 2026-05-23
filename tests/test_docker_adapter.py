@@ -14,10 +14,18 @@ class FakeContainer:
     name = "lcp-project1"
     status = "running"
 
+    def start(self):
+        self.status = "running"
+
     def commit(self, repository, tag):
         self.repository = repository
         self.tag = tag
         return FakeImage()
+
+    def exec_run(self, command, stdout=True, stderr=True, environment=None, workdir=None, user=None):
+        self.exec_command = command
+        self.exec_user = user
+        return type("ExecRunResult", (), {"exit_code": 0, "output": b""})()
 
 
 class FakeContainers:
@@ -65,3 +73,17 @@ def test_load_image_reads_tar(tmp_path: Path) -> None:
     adapter.load_image(tar_path)
 
     assert client.images.loaded == b"image-data"
+
+
+def test_start_creates_compat_symlinks(tmp_path: Path) -> None:
+    client = FakeClient()
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", ["/mnt/c/Users/Administrator/Desktop"], "amd64", "thiswind", 1000, 1000)
+    store.save_profile(profile)
+    adapter = DockerAdapter(store, client)
+
+    adapter.start(profile)
+
+    assert client.container.exec_user == "0:0"
+    command = client.container.exec_command
+    assert command == ["bash", "-lc", "mkdir -p /mnt/c/Users/Administrator && ln -sfn /home/thiswind/Desktop /mnt/c/Users/Administrator/Desktop"]

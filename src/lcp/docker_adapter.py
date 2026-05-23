@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+import shlex
 from typing import Any
 
 import docker
@@ -86,6 +87,21 @@ class DockerAdapter:
     def start(self, profile: Profile) -> None:
         container = self.get_container(profile)
         container.start()
+        self.ensure_compat_symlinks(profile)
+
+    def ensure_compat_symlinks(self, profile: Profile) -> None:
+        links = profile.mounts.desktop.compatSymlinks
+        if not links:
+            return
+        commands = []
+        target = shlex.quote(profile.mounts.desktop.containerPath)
+        for link in links:
+            link_path = shlex.quote(link)
+            parent = shlex.quote(str(Path(link).parent))
+            commands.append(f"mkdir -p {parent} && ln -sfn {target} {link_path}")
+        result = self.exec_root(profile, " && ".join(commands))
+        if result.exit_code != 0:
+            raise RuntimeError(result.output)
 
     def stop(self, profile: Profile) -> None:
         container = self.get_container(profile)

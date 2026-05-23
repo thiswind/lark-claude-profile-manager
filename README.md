@@ -1,60 +1,41 @@
 # Lark Claude Profile Manager
 
-`lcp` 是一个本地 CLI，用来管理多个长期运行的 Claude Code + 飞书/Lark bridge 工作环境。
+`lcp` 是一个本地命令行工具，用来管理多个 Claude Code + 飞书/Lark bridge 工作环境。
 
-核心模型：
+你可以为不同任务创建不同 profile。每个 profile 会有自己的容器、飞书 bridge 配置、`lark-cli` 状态和日志。
 
-```text
-一个任务域 = 一个 profile = 一个飞书机器人 = 一个长期 Docker 容器
-```
+## 环境要求
 
-每个 profile 独立拥有：
+- Python 3.11+
+- Docker / Docker Desktop
+- 可用的 Claude Code 配置
 
-- 一个 Docker 容器：`lcp-<profile>`
-- 一份 `lark-channel-bridge` 状态
-- 一份 `lark-cli` 状态
-- 一份日志目录
-- 一个可长期演化、可 snapshot 的容器环境
-
-Claude Code 配置从宿主机挂载到容器内复用；项目工作区只挂载宿主机 Desktop，不挂载整盘。
-
-## 当前状态
-
-已验证环境：
+已验证：
 
 - WSL Ubuntu + Docker Desktop
-- Windows 原生 Python + Docker Desktop
-
-注意：WSL 和 Windows 原生运行时是两套独立环境：
-
-```text
-WSL:     /home/<user>/.lcp
-Windows: C:\Users\<user>\.lcp
-```
-
-所以在 WSL 里 `lcp profile list` 和在 PowerShell 里 `lcp profile list` 看到的 profile 可能不同。这是预期行为。
+- Windows + Docker Desktop
 
 ## 安装
 
-在项目目录中安装到当前用户 Python 环境：
+在项目目录中运行：
 
 ```bash
 python -m pip install --user .
 ```
 
-开发时建议使用 editable 安装：
+开发或频繁更新源码时使用 editable 安装：
 
 ```bash
 python -m pip install --user -e '.[dev]'
 ```
 
-Windows PowerShell 中同样使用：
+Windows PowerShell：
 
 ```powershell
 python -m pip install --user -e .[dev]
 ```
 
-如果安装后找不到 `lcp`，检查 Python user scripts 目录是否在 `PATH`。
+如果安装后找不到 `lcp`，把 Python user scripts 目录加入 `PATH`。
 
 WSL / Linux 常见路径：
 
@@ -68,157 +49,51 @@ Windows 常见路径：
 %APPDATA%\Python\Python<MAJOR><MINOR>\Scripts
 ```
 
-例如 Python 3.14：
+例如：
 
 ```text
 C:\Users\Administrator\AppData\Roaming\Python\Python314\Scripts
 ```
 
-更新代码后，如果之前不是 editable 安装，需要重新安装：
+更新非 editable 安装：
 
 ```bash
 python -m pip install --user --upgrade .
 ```
 
-## 命令结构
+## 快速开始
 
-顶层命令只保留 LCP 自身和主功能分组：
-
-```text
-lcp init       初始化本机配置
-lcp doctor     检查本机环境
-lcp profile    管理 profile 生命周期
-lcp bridge     管理或代理容器内 lark-channel-bridge
-```
-
-旧的顶层命令（如 `lcp create`、`lcp list`、`lcp status`）仍保留为隐藏兼容入口，但新用法应使用 `lcp profile ...`。
-
-## 初始化
-
-首次使用先运行：
+初始化：
 
 ```bash
 lcp init
 ```
 
-它会检查：
-
-- 当前运行环境：WSL / Windows / Linux / macOS
-- CPU 架构
-- 当前宿主用户与 UID/GID
-- Desktop 路径
-- Docker 可用性与版本
-- GPU 检测结果
-- Claude Code 配置路径
-- Ubuntu LTS / Node.js 策略
-
-并写入：
-
-```text
-~/.lcp/config.json
-```
-
-之后可随时检查当前环境：
+检查环境：
 
 ```bash
 lcp doctor
 ```
 
-## 创建 profile
-
-创建一个 profile：
+创建 profile：
 
 ```bash
 lcp profile create solid
 ```
 
-它会：
-
-1. 读取或生成本机配置。
-2. 生成 profile 配置。
-3. 构建 profile base image：`lcp/solid:base`。
-4. 创建长期容器：`lcp-solid`。
-5. 启动容器。
-6. 安装 Claude Code、`lark-cli`、`lark-channel-bridge`。
-
-跳过运行时工具安装：
-
-```bash
-lcp profile create solid --no-install
-```
-
-如果同名 profile 或容器已经存在，命令会安全失败并提示处理方式，不会覆盖已有 profile state，也不会抛 Docker traceback。要重建请先删除：
-
-```bash
-lcp profile rm solid
-```
-
-## 查看和进入 profile
-
-列出 profile：
-
-```bash
-lcp profile list
-```
-
-查看单个 profile 状态：
-
-```bash
-lcp profile status solid
-```
-
-进入容器 shell：
-
-```bash
-lcp profile shell solid
-```
-
-验证容器环境：
-
-```bash
-lcp profile verify solid
-```
-
-如果不想运行 Claude 非交互检查：
-
-```bash
-lcp profile verify solid --no-run-claude
-```
-
-## 绑定飞书机器人
-
-`lcp` 不自动创建或绑定飞书机器人。首次配置 bridge 时，用前台模式运行：
+首次绑定飞书机器人，前台运行 bridge：
 
 ```bash
 lcp bridge solid run
 ```
 
-这会在当前终端中运行容器内的：
+完成二维码/配置流程，确认可用后按 `Ctrl+C` 退出。
 
-```bash
-lark-channel-bridge run
-```
-
-适合扫码、填写配置、调试输出。完成配置并确认能收发消息后，按 `Ctrl+C` 退出前台运行。
-
-## 后台运行 bridge
-
-日常后台运行使用：
+后台启动 bridge：
 
 ```bash
 lcp bridge solid start
 ```
-
-`lcp bridge <profile> start` 的语义是：
-
-1. 启动 profile 容器。
-2. 在容器内用 LCP supervisor loop 后台托管：
-   ```bash
-   lark-channel-bridge run
-   ```
-3. 检查真实的 `node ... lark-channel-bridge run` 进程是否存在。
-
-它不是代理上游的 `lark-channel-bridge start`。上游 `start` 是 OS daemon/service 语义；LCP 使用容器内后台 supervisor 管理 `run`。
 
 查看状态：
 
@@ -232,90 +107,122 @@ lcp bridge solid status
 lcp bridge solid logs
 ```
 
-停止后台 bridge：
+## 常用命令
+
+### 本机配置
 
 ```bash
-lcp bridge solid stop
+lcp init
+lcp doctor
 ```
 
-重启后台 bridge 和容器：
+### Profile 管理
 
 ```bash
-lcp bridge solid restart
+lcp profile create <name>
+lcp profile list
+lcp profile status <name>
+lcp profile shell <name>
+lcp profile verify <name>
+lcp profile rm <name>
 ```
 
-如果还没有完成首次 QR/配置，`lcp bridge solid start` 会失败并提示先运行：
+跳过创建时的工具安装：
 
 ```bash
-lcp bridge solid run
+lcp profile create <name> --no-install
 ```
 
-## 代理 lark-channel-bridge 命令
-
-除 LCP 托管动作外，`lcp bridge <profile> ...` 会把其它参数原样转发给容器内 `lark-channel-bridge`。
-
-示例：
+跳过 Claude 非交互检查：
 
 ```bash
-lcp bridge solid run
-lcp bridge solid ps
-lcp bridge solid secrets list
-lcp bridge solid --help
+lcp profile verify <name> --no-run-claude
 ```
 
-常用动作可通过 help 查看：
+删除 profile 时跳过确认：
 
 ```bash
-lcp bridge --help
+lcp profile rm <name> --yes
 ```
 
-## 删除 profile
-
-profile 和容器是一个生命周期单元。删除时一起删除：
+### Bridge 管理
 
 ```bash
-lcp profile rm solid
+lcp bridge <name> run
+lcp bridge <name> start
+lcp bridge <name> status
+lcp bridge <name> logs
+lcp bridge <name> stop
+lcp bridge <name> restart
 ```
 
-跳过确认：
+说明：
+
+- `run`：前台运行，用于首次配置、二维码流程和调试。
+- `start`：后台运行，日常使用。
+- `logs`：查看 bridge 日志。
+- `stop`：停止后台 bridge。
+- `restart`：重启后台 bridge。
+
+其它 bridge 参数会转发给容器内的 `lark-channel-bridge`：
 
 ```bash
-lcp profile rm solid --yes
+lcp bridge <name> --help
+lcp bridge <name> ps
+lcp bridge <name> secrets list
 ```
 
-该命令会：
+## Profile 工作目录
 
-1. 停止 LCP 托管的 bridge。
-2. 删除 Docker 容器 `lcp-solid`。
-3. 删除 profile state：`~/.lcp/profiles/solid`。
+容器内 Desktop 路径：
 
-隐藏调试命令 `lcp rm container <name>` 和 `lcp rm profile <name>` 仍保留用于救援，但日常不建议使用。
+```text
+/home/<user>/Desktop
+```
 
-## Snapshot / Restore
+默认工作目录：
 
-备份 profile 容器镜像：
+```text
+/home/<user>/Desktop/Projects/Active/<profile>
+```
+
+例如当前 WSL 环境中：
+
+```text
+/home/thiswind/Desktop/Projects/Active/solid
+```
+
+对应宿主机：
+
+```text
+/mnt/c/Users/Administrator/Desktop/Projects/Active/solid
+```
+
+## 备份和恢复
+
+导出容器 snapshot：
 
 ```bash
-lcp profile snapshot solid
+lcp profile snapshot <name>
 ```
 
 指定输出目录：
 
 ```bash
-lcp profile snapshot solid --output /path/to/backup-dir
+lcp profile snapshot <name> --output /path/to/backup-dir
 ```
 
 加载 snapshot tar：
 
 ```bash
-lcp profile restore solid --image-tar /path/to/solid-snapshot.tar
+lcp profile restore <name> --image-tar /path/to/snapshot.tar
 ```
 
-当前 restore 只完成 Docker image load。完整的“从 snapshot 重建 profile/container”仍是后续增强项。
+当前 restore 只加载 Docker image tar，完整重建 profile/container 仍在完善中。
 
 ## 自动补全
 
-Typer 提供 shell completion 安装命令。根据 `lcp --install-completion` 的提示选择当前 shell：
+Bash：
 
 ```bash
 lcp --install-completion bash
@@ -327,57 +234,62 @@ PowerShell：
 lcp --install-completion powershell
 ```
 
-安装后通常需要重开终端。
+安装后重开终端。
 
-## 测试
+## WSL 和 Windows 说明
 
-运行单元测试：
+WSL 和 Windows 原生 Python 会使用不同的 LCP 数据目录：
 
-```bash
-python -m pytest tests
+```text
+WSL:     /home/<user>/.lcp
+Windows: C:\Users\<user>\.lcp
 ```
 
-常用聚焦测试：
+所以在 WSL 和 PowerShell 中看到的 profile 列表可能不同。
+
+## 故障排查
+
+### `lcp` 命令找不到
+
+检查 Python user scripts 目录是否在 `PATH`。
+
+### `lcp bridge <name> start` 提示缺少配置
+
+先运行前台配置：
 
 ```bash
-python -m pytest tests/test_cli.py tests/test_bridge.py
+lcp bridge <name> run
 ```
 
-## 常见问题
-
-### 为什么 WSL 和 Windows 看到的 profile 不一样？
-
-因为它们使用不同的 `~/.lcp`：WSL 是 Linux home，Windows 是 Windows user home。两边可以分别管理不同 profile。
-
-### 为什么只挂载 Desktop？
-
-为了限制容器对宿主机的影响范围。Desktop 是主要人机协作工作区；不挂载整盘可以降低误改系统目录、用户配置、AppData 等敏感路径的风险。
-
-### 为什么容器不用 root？
-
-容器运行用户和宿主用户 UID/GID 对齐，可以减少权限问题，也避免在 Desktop 里生成 root-owned 文件。
-
-### 为什么 Node.js 放进 Dockerfile？
-
-`lark-channel-bridge` 依赖较新的 Node API。LCP 固化 Node.js 24 LTS 到 profile image 层，保证新 profile 有一致的运行基础。
-
-### 为什么 Claude Code 和 bridge 不放进 Dockerfile？
-
-它们更新频率高。放在容器创建后安装，可以让新 profile 创建时拿到当时较新的版本。
-
-### `lcp bridge start` 成功但收不到消息怎么办？
-
-先看状态和日志：
+完成二维码/配置流程后，再运行：
 
 ```bash
-lcp bridge solid status
-lcp bridge solid logs
+lcp bridge <name> start
 ```
 
-如果提示缺少配置，先运行前台向导：
+### 后台 bridge 收不到消息
+
+查看状态和日志：
 
 ```bash
-lcp bridge solid run
+lcp bridge <name> status
+lcp bridge <name> logs
 ```
 
-如果日志显示 bridge 已连接但仍收不到消息，再检查飞书机器人配置、事件订阅、权限和 `lark-cli` 登录状态。
+如果 bridge 已连接但仍收不到消息，检查飞书机器人事件订阅、权限和 `lark-cli` 登录状态。
+
+### profile 已存在
+
+查看状态：
+
+```bash
+lcp profile status <name>
+```
+
+如果要重建，先删除：
+
+```bash
+lcp profile rm <name>
+```
+
+再重新创建。

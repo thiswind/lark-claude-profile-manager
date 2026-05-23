@@ -24,6 +24,7 @@ lcp = "lcp.cli:app"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 addopts = ["-p", "no:cacheprovider"]
 markers = [
   "integration: tests requiring Docker or host integration",

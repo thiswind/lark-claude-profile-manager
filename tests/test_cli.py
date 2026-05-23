@@ -46,10 +46,14 @@ class FakeAdapter:
 
 class FakeCreatorAdapter(FakeAdapter):
     created = []
+    started_profiles = []
 
     def create_profile_container(self, profile):
         self.created.append(profile.name)
         return FakeContainer()
+
+    def start(self, profile):
+        self.started_profiles.append(profile.name)
 
 
 class FakeSnapshotAdapter(FakeAdapter):
@@ -165,6 +169,7 @@ def test_profile_rm_removes_container_and_profile_state(monkeypatch, tmp_path: P
 def test_profile_create_uses_create_path(monkeypatch, tmp_path: Path) -> None:
     store = cli.LcpStore(tmp_path / ".lcp")
     FakeCreatorAdapter.created = []
+    FakeCreatorAdapter.started_profiles = []
     FakeCreatorAdapter.container = None
     monkeypatch.setattr(cli, "LcpStore", lambda: store)
     monkeypatch.setattr(cli, "DockerAdapter", FakeCreatorAdapter)
@@ -196,6 +201,7 @@ def test_profile_create_uses_create_path(monkeypatch, tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "created: lcp-project1" in result.output
     assert FakeCreatorAdapter.created == ["project1"]
+    assert FakeCreatorAdapter.started_profiles == ["project1"]
 
 
 def test_profile_create_refuses_existing_profile(monkeypatch, tmp_path: Path) -> None:
