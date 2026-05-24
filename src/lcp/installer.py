@@ -4,7 +4,7 @@ from .models import Profile
 
 NPM_CACHE_ARG = "--cache /cache/npm"
 CLAUDE_NATIVE_FIXUP = "cd $(npm root -g)/@anthropic-ai/claude-code && pkg=$(case $(node -p 'process.arch') in x64) echo @anthropic-ai/claude-code-linux-x64 ;; arm64) echo @anthropic-ai/claude-code-linux-arm64 ;; esac) && if [ -n \"$pkg\" ]; then npm install \"$pkg\" --cache /cache/npm; fi && node install.cjs"
-GIT_IDENTITY_SETUP = "git config --global user.name 'Claude Code' && git config --global user.email 'noreply@anthropic.com'"
+GIT_IDENTITY_SETUP = "git config --global user.name 'thiswind' && git config --global user.email 'thiswind@gmail.com'"
 
 
 def install_runtime(adapter: DockerAdapter, profile: Profile) -> list[ExecResult]:

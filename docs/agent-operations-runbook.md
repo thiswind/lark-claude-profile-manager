@@ -733,8 +733,6 @@ git commit -m "$(cat <<'EOF'
 Commit title.
 
 Commit body explaining why.
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 EOF
 )"
 ```
