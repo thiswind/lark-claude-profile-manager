@@ -44,6 +44,7 @@ class UserConfig(BaseModel):
 class ContainerConfig(BaseModel):
     name: str
     image: str
+    hostname: str | None = None
     baseImage: str = UBUNTU_LTS_IMAGE
     ubuntuLts: str = "24.04"
     arch: str = "amd64"
@@ -69,9 +70,15 @@ class ClaudeMount(BaseModel):
     hostClaudeJson: str
 
 
+class GitHubCliMount(BaseModel):
+    shareConfig: bool = True
+    hostConfigDir: str
+
+
 class MountConfig(BaseModel):
     desktop: DesktopMount
     claude: ClaudeMount
+    githubCli: GitHubCliMount | None = None
 
 
 class RuntimeConfig(BaseModel):
@@ -133,6 +140,7 @@ def default_profile(
         container=ContainerConfig(
             name=container,
             image=profile_image_name(name),
+            hostname=container,
             arch=arch,
             user=UserConfig(name=user_name, uid=uid, gid=gid, home=user_home, displayName=display_name),
         ),
@@ -146,6 +154,9 @@ def default_profile(
             claude=ClaudeMount(
                 hostClaudeDir=str(Path.home() / ".claude"),
                 hostClaudeJson=str(Path.home() / ".claude.json"),
+            ),
+            githubCli=GitHubCliMount(
+                hostConfigDir=str(Path.home() / ".config" / "gh"),
             ),
         ),
     )

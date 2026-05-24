@@ -2,7 +2,7 @@ from .host_user import HostUser
 from .models import UBUNTU_LTS_IMAGE
 
 NODE_MAJOR = 24
-BASE_PACKAGES = "ca-certificates curl git bash coreutils python3 python3-pip gnupg sudo"
+BASE_PACKAGES = "ca-certificates curl git gh bash coreutils python3 python3-pip gnupg sudo"
 
 
 def render_profile_dockerfile(user: HostUser) -> str:

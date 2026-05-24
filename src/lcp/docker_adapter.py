@@ -52,6 +52,7 @@ class DockerAdapter:
         return self.client.containers.create(
             image=profile.container.image,
             name=profile.container.name,
+            hostname=profile.container.hostname,
             detach=True,
             tty=True,
             labels={
@@ -176,4 +177,9 @@ class DockerAdapter:
                 binds[str(claude_dir)] = {"bind": f"{user_home}/.claude", "mode": "rw"}
             if claude_json.exists():
                 binds[str(claude_json)] = {"bind": f"{user_home}/.claude.json", "mode": "rw"}
+        github_cli = profile.mounts.githubCli
+        if github_cli and github_cli.shareConfig:
+            gh_dir = Path(github_cli.hostConfigDir)
+            if gh_dir.exists():
+                binds[str(gh_dir)] = {"bind": f"{user_home}/.config/gh", "mode": "rw"}
         return binds
