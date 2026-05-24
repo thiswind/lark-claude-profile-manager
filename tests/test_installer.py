@@ -1,4 +1,4 @@
-from lcp.installer import CLAUDE_NATIVE_FIXUP, install_runtime
+from lcp.installer import CLAUDE_NATIVE_FIXUP, NPM_CACHE_ARG, install_runtime
 from lcp.models import default_profile
 
 
@@ -29,6 +29,9 @@ def test_install_runtime_runs_claude_native_fixup(tmp_path) -> None:
     results = install_runtime(adapter, profile)
 
     assert len(results) == 7
-    assert "npm install -g @anthropic-ai/claude-code --include=optional" in adapter.user_commands
+    claude_install = f"npm install -g @anthropic-ai/claude-code --include=optional {NPM_CACHE_ARG}"
+    assert claude_install in adapter.user_commands
     assert CLAUDE_NATIVE_FIXUP in adapter.user_commands
-    assert adapter.user_commands.index(CLAUDE_NATIVE_FIXUP) == adapter.user_commands.index("npm install -g @anthropic-ai/claude-code --include=optional") + 1
+    assert adapter.user_commands.index(CLAUDE_NATIVE_FIXUP) == adapter.user_commands.index(claude_install) + 1
+    assert f"npm install -g @larksuite/cli {NPM_CACHE_ARG}" in adapter.user_commands
+    assert f"npm install -g lark-channel-bridge {NPM_CACHE_ARG}" in adapter.user_commands

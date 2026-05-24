@@ -27,7 +27,11 @@ class DockerAdapter:
         return bool(self.client.ping())
 
     def pull_base_image(self) -> None:
-        self.client.images.pull(UBUNTU_LTS_IMAGE)
+        try:
+            self.client.images.get(UBUNTU_LTS_IMAGE)
+            return
+        except NotFound:
+            self.client.images.pull(UBUNTU_LTS_IMAGE)
 
     def write_profile_dockerfile(self, profile: Profile) -> Path:
         profile_dir = self.store.ensure_profile_dirs(profile.name)

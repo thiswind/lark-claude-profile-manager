@@ -42,6 +42,10 @@ class FakeContainers:
 
 
 class FakeImages:
+    def get(self, image):
+        self.local_image = image
+        return object()
+
     def pull(self, image):
         self.pulled = image
 

@@ -7,3 +7,4 @@
 - Persist profile container hostnames to keep upstream bridge encrypted secrets decryptable after container rebuilds.
 - Enable passwordless sudo for the profile user inside containers so agents can install missing OS packages non-interactively.
 - Move default profile workspaces from `Desktop/Projects/Active/<profile>` to `Desktop/Projects/lcp_profiles/<profile>` to avoid colliding with real projects.
+- Speed up profile creation by skipping base image pulls when `ubuntu:24.04` already exists locally and making npm runtime installs explicitly use the shared `/cache/npm` cache.
