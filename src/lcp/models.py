@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 UBUNTU_LTS_IMAGE = "ubuntu:24.04"
+LCP_PROFILE_WORKSPACES_DIR = "lcp_profiles"
 
 
 def container_home(user_name: str) -> str:
@@ -133,7 +134,7 @@ def default_profile(
     container = container_name(name)
     user_home = container_home(user_name)
     desktop = container_desktop(user_name)
-    cwd = f"{desktop}/Projects/Active/{name}"
+    cwd = f"{desktop}/Projects/{LCP_PROFILE_WORKSPACES_DIR}/{name}"
     return Profile(
         name=name,
         description=f"LCP profile {name}",

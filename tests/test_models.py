@@ -21,7 +21,7 @@ def test_default_profile_uses_desktop_workspace() -> None:
     assert profile.container.image == "lcp/project1:base"
     assert profile.container.baseImage == "ubuntu:24.04"
     assert profile.container.user.name == "thiswind"
-    assert profile.workspace.defaultCwd == f"{container_desktop('thiswind')}/Projects/Active/project1"
+    assert profile.workspace.defaultCwd == f"{container_desktop('thiswind')}/Projects/lcp_profiles/project1"
     assert profile.mounts.desktop.hostPath == "/mnt/c/Users/Administrator/Desktop"
     assert profile.mounts.desktop.compatSymlinks == ["/mnt/c/Users/Administrator/Desktop"]
 

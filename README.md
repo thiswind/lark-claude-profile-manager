@@ -183,19 +183,19 @@ lcp bridge <name> secrets list
 默认工作目录：
 
 ```text
-/home/<user>/Desktop/Projects/Active/<profile>
+/home/<user>/Desktop/Projects/lcp_profiles/<profile>
 ```
 
 例如当前 WSL 环境中：
 
 ```text
-/home/thiswind/Desktop/Projects/Active/solid
+/home/thiswind/Desktop/Projects/lcp_profiles/solid
 ```
 
 对应宿主机：
 
 ```text
-/mnt/c/Users/Administrator/Desktop/Projects/Active/solid
+/mnt/c/Users/Administrator/Desktop/Projects/lcp_profiles/solid
 ```
 
 ## 备份和恢复
