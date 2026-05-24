@@ -61,6 +61,14 @@ C:\Users\Administrator\AppData\Roaming\Python\Python314\Scripts
 python -m pip install --user --upgrade .
 ```
 
+## 面向宿主机 Claude Code 的运营手册
+
+如果你是一个运行在宿主机上的 Claude Code agent，负责创建、维护、排障和发布 LCP profiles，请先阅读：
+
+[Agent Operations Runbook](docs/agent-operations-runbook.md)
+
+这份手册面向智能体，不是普通用户教程。它定义了 profile/container/bridge/lark-cli/GitHub 的日常操作顺序、安全边界和失败处理规则。
+
 ## 快速开始
 
 初始化：
@@ -154,15 +162,17 @@ lcp bridge <name> status
 lcp bridge <name> logs
 lcp bridge <name> stop
 lcp bridge <name> restart
+lcp bridge <name> bind-lark-cli
 ```
 
 说明：
 
 - `run`：前台运行，用于首次配置、二维码流程和调试。
-- `start`：后台运行，日常使用。
+- `start`：后台运行，日常使用；启动前会自动绑定 profile-local `lark-cli`，失败则退出。
 - `logs`：查看 bridge 日志。
 - `stop`：停止后台 bridge。
-- `restart`：重启后台 bridge。
+- `restart`：重启后台 bridge 和容器；启动 bridge 前会重新绑定 profile-local `lark-cli`。
+- `bind-lark-cli`：手动把 profile-local `lark-cli` 绑定到当前 profile 的机器人。
 
 其它 bridge 参数会转发给容器内的 `lark-channel-bridge`：
 
