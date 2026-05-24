@@ -28,6 +28,7 @@ def verify_profile(adapter: DockerAdapter, profile: Profile, run_claude: bool = 
     run("claude_config", f"test -d {user.home}/.claude || test -f {user.home}/.claude.json")
     run("node", "node --version | grep '^v24\\.'")
     run("npm", "npm --version")
+    run("git_identity", "test -n \"$(git config --global --get user.name)\" && test -n \"$(git config --global --get user.email)\"")
     run("claude_version", "claude --version")
     if run_claude:
         run("claude_non_interactive", "claude -p 'reply ok' --output-format stream-json --verbose")

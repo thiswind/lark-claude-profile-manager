@@ -1,4 +1,4 @@
-from lcp.installer import CLAUDE_NATIVE_FIXUP, NPM_CACHE_ARG, install_runtime
+from lcp.installer import CLAUDE_NATIVE_FIXUP, GIT_IDENTITY_SETUP, NPM_CACHE_ARG, install_runtime
 from lcp.models import default_profile
 
 
@@ -28,7 +28,8 @@ def test_install_runtime_runs_claude_native_fixup(tmp_path) -> None:
 
     results = install_runtime(adapter, profile)
 
-    assert len(results) == 7
+    assert len(results) == 8
+    assert GIT_IDENTITY_SETUP in adapter.user_commands
     claude_install = f"npm install -g @anthropic-ai/claude-code --include=optional {NPM_CACHE_ARG}"
     assert claude_install in adapter.user_commands
     assert CLAUDE_NATIVE_FIXUP in adapter.user_commands
