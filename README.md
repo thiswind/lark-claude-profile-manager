@@ -12,6 +12,7 @@
 
 已验证：
 
+- macOS + Docker Desktop
 - WSL Ubuntu + Docker Desktop
 - Windows + Docker Desktop
 
