@@ -116,3 +116,14 @@ def test_create_mounts_github_cli_config_when_present(tmp_path: Path) -> None:
     adapter.create_profile_container(profile)
 
     assert client.containers.created["volumes"][str(gh_dir)] == {"bind": "/home/thiswind/.config/gh", "mode": "rw"}
+
+
+def test_create_sets_restart_policy(tmp_path: Path) -> None:
+    client = FakeClient()
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    adapter = DockerAdapter(store, client)
+
+    adapter.create_profile_container(profile)
+
+    assert client.containers.created["restart_policy"] == {"Name": "always"}

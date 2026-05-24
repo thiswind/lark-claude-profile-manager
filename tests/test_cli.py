@@ -283,8 +283,10 @@ def test_legacy_list_still_works_hidden(monkeypatch, tmp_path: Path) -> None:
 
 def test_bridge_proxies_args_to_container(monkeypatch, tmp_path: Path) -> None:
     store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
     calls = []
     monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
     monkeypatch.setattr(cli.subprocess, "call", lambda command: calls.append(command) or 0)
 
     result = runner.invoke(cli.app, ["bridge", "project1", "ps"])
@@ -295,8 +297,10 @@ def test_bridge_proxies_args_to_container(monkeypatch, tmp_path: Path) -> None:
 
 def test_bridge_proxies_unknown_options(monkeypatch, tmp_path: Path) -> None:
     store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
     calls = []
     monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
     monkeypatch.setattr(cli.subprocess, "call", lambda command: calls.append(command) or 0)
 
     result = runner.invoke(cli.app, ["bridge", "project1", "run", "--skip-check-lark-cli"])
@@ -307,6 +311,7 @@ def test_bridge_proxies_unknown_options(monkeypatch, tmp_path: Path) -> None:
 
 def test_bridge_start_uses_lcp_runtime_not_upstream_start(monkeypatch, tmp_path: Path) -> None:
     store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
     starts = []
     calls = []
     monkeypatch.setattr(cli, "LcpStore", lambda: store)
@@ -324,11 +329,59 @@ def test_bridge_start_uses_lcp_runtime_not_upstream_start(monkeypatch, tmp_path:
 
 def test_bridge_run_stays_foreground_proxy(monkeypatch, tmp_path: Path) -> None:
     store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
     calls = []
     monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
     monkeypatch.setattr(cli.subprocess, "call", lambda command: calls.append(command) or 0)
 
     result = runner.invoke(cli.app, ["bridge", "project1", "run"])
 
     assert result.exit_code == 0
     assert calls == [["docker", "exec", "-it", "lcp-project1", "lark-channel-bridge", "run"]]
+
+
+def test_missing_profile_shows_friendly_error(monkeypatch, tmp_path: Path) -> None:
+    store = cli.LcpStore(tmp_path / ".lcp")
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+
+    result = runner.invoke(cli.app, ["profile", "status", "missing"])
+
+    assert result.exit_code == 1
+    assert "error: profile not found: missing" in result.output
+    assert "lcp profile list" in result.output
+
+
+def test_missing_container_shows_friendly_error(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    FakeAdapter.container = None
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "status", "project1"])
+
+    assert result.exit_code == 1
+    assert "error: container not found: lcp-project1" in result.output
+    assert "stale profile state" in result.output
+
+
+def test_invalid_profile_name_shows_friendly_error(monkeypatch, tmp_path: Path) -> None:
+    store = cli.LcpStore(tmp_path / ".lcp")
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+
+    result = runner.invoke(cli.app, ["profile", "create", "bad/name", "--no-install"])
+
+    assert result.exit_code == 1
+    assert "error: invalid profile name" in result.output
+    assert "letters, numbers" in result.output
+
+
+def test_restore_missing_tar_shows_friendly_error(monkeypatch, tmp_path: Path) -> None:
+    store = cli.LcpStore(tmp_path / ".lcp")
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+
+    result = runner.invoke(cli.app, ["profile", "restore", "project1", "--image-tar", str(tmp_path / "missing.tar")])
+
+    assert result.exit_code == 1
+    assert "error: snapshot tar not found" in result.output
+    assert "--image-tar" in result.output

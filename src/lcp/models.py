@@ -83,8 +83,8 @@ class MountConfig(BaseModel):
 
 
 class RuntimeConfig(BaseModel):
-    autoStart: bool = False
-    restartPolicy: str = "unless-stopped"
+    autoStart: bool = True
+    restartPolicy: str = "always"
 
 
 class VerificationConfig(BaseModel):

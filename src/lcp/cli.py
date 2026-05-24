@@ -1,15 +1,17 @@
 from pathlib import Path
+import json
 import os
 import subprocess
 
 import typer
 from docker.errors import APIError
+from pydantic import ValidationError
 from rich.table import Table
 
 from .bridge import bridge_status, start_bridge, stop_bridge, BRIDGE_LOG
 from .docker_adapter import DockerAdapter
 from .installer import install_runtime
-from .models import default_profile
+from .models import Profile, container_name, default_profile
 from .selfcheck import collect_init_report
 from .store import LcpStore
 from .ui import console, print_banner, print_checks
@@ -22,7 +24,38 @@ app.add_typer(profile_app, name="profile")
 app.add_typer(rm_app, name="rm", hidden=True)
 
 
+def _fail(message: str, hint: str | None = None) -> None:
+    typer.echo(f"error: {message}")
+    if hint:
+        typer.echo(f"hint: {hint}")
+    raise typer.Exit(1)
+
+
+def _load_profile_or_exit(store: LcpStore, name: str) -> Profile:
+    try:
+        return store.load_profile(name)
+    except FileNotFoundError:
+        _fail(f"profile not found: {name}", "run `lcp profile list` to see existing profiles, or `lcp profile create <name>` to create one")
+    except (json.JSONDecodeError, ValidationError) as exc:
+        _fail(f"profile state is invalid: {store.profile_dir(name) / 'profile.json'}", str(exc))
+
+
+def _profile_from_name_or_exit(name: str) -> str:
+    try:
+        return container_name(name)
+    except ValueError as exc:
+        _fail(str(exc), "profile names must use letters, numbers, dot, underscore, or dash")
+
+
+def _get_container_or_exit(adapter: DockerAdapter, profile: Profile):
+    container = adapter.get_container_or_none(profile)
+    if container is None:
+        _fail(f"container not found: {profile.container.name}", f"run `lcp profile rm {profile.name}` to remove stale profile state, or recreate the profile")
+    return container
+
+
 def _create_profile(name: str, desktop: str | None, install: bool) -> None:
+    _profile_from_name_or_exit(name)
     store = LcpStore()
     store.init_dirs()
     profile_file = store.profile_dir(name) / "profile.json"
@@ -87,7 +120,7 @@ def _list_profiles() -> None:
     table.add_column("status")
     table.add_column("bridge")
     for name in store.list_profiles():
-        profile = store.load_profile(name)
+        profile = _load_profile_or_exit(store, name)
         container = adapter.get_container_or_none(profile)
         container_status = container.status if container else "missing"
         bridge = "-"
@@ -100,9 +133,9 @@ def _list_profiles() -> None:
 
 def _show_profile_status(name: str) -> None:
     store = LcpStore()
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
     adapter = DockerAdapter(store)
-    container = adapter.get_container(profile)
+    container = _get_container_or_exit(adapter, profile)
     status = bridge_status(adapter, profile)
     typer.echo(f"name: {profile.name}")
     typer.echo(f"container: {container.name}")
@@ -114,14 +147,16 @@ def _show_profile_status(name: str) -> None:
 
 def _open_profile_shell(name: str) -> None:
     store = LcpStore()
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
+    _get_container_or_exit(DockerAdapter(store), profile)
     os.execvp("docker", ["docker", "exec", "-it", profile.container.name, "bash"])
 
 
 def _verify_profile_command(name: str, run_claude: bool) -> None:
     store = LcpStore()
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
     adapter = DockerAdapter(store)
+    _get_container_or_exit(adapter, profile)
     failures = 0
     for check in verify_profile(adapter, profile, run_claude=run_claude):
         mark = "ok" if check.ok else "failed"
@@ -135,21 +170,27 @@ def _verify_profile_command(name: str, run_claude: bool) -> None:
 
 def _snapshot_profile(name: str, output: str | None) -> None:
     store = LcpStore()
-    profile = store.load_profile(name)
-    tar_path = DockerAdapter(store).snapshot(profile, Path(output) if output else None)
+    profile = _load_profile_or_exit(store, name)
+    adapter = DockerAdapter(store)
+    _get_container_or_exit(adapter, profile)
+    tar_path = adapter.snapshot(profile, Path(output) if output else None)
     typer.echo(f"snapshot: {tar_path}")
 
 
 def _restore_profile(name: str, image_tar: str) -> None:
+    tar = Path(image_tar)
+    if not tar.exists():
+        _fail(f"snapshot tar not found: {image_tar}", "check the path passed to `--image-tar`")
     store = LcpStore()
-    DockerAdapter(store).load_image(Path(image_tar))
+    DockerAdapter(store).load_image(tar)
     typer.echo(f"loaded snapshot for {name}: {image_tar}")
 
 
 def _start_bridge_runtime(name: str, start_container: bool = True) -> None:
     store = LcpStore()
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
     adapter = DockerAdapter(store)
+    _get_container_or_exit(adapter, profile)
     if start_container:
         adapter.start(profile)
         typer.echo(f"started: {profile.container.name}")
@@ -162,8 +203,9 @@ def _start_bridge_runtime(name: str, start_container: bool = True) -> None:
 
 def _stop_bridge_runtime(name: str, stop_container: bool = False) -> None:
     store = LcpStore()
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
     adapter = DockerAdapter(store)
+    _get_container_or_exit(adapter, profile)
     stop_bridge(adapter, profile)
     typer.echo("bridge stopped")
     if stop_container:
@@ -173,8 +215,9 @@ def _stop_bridge_runtime(name: str, stop_container: bool = False) -> None:
 
 def _restart_bridge_runtime(name: str) -> None:
     store = LcpStore()
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
     adapter = DockerAdapter(store)
+    _get_container_or_exit(adapter, profile)
     stop_bridge(adapter, profile)
     adapter.stop(profile)
     adapter.start(profile)
@@ -188,8 +231,9 @@ def _restart_bridge_runtime(name: str) -> None:
 
 def _show_profile_logs(name: str, bridge: bool) -> None:
     store = LcpStore()
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
     adapter = DockerAdapter(store)
+    _get_container_or_exit(adapter, profile)
     if bridge:
         result = adapter.exec(profile, f"test -f {BRIDGE_LOG} && tail -n 200 {BRIDGE_LOG} || true")
         typer.echo(result.output)
@@ -201,7 +245,7 @@ def _remove_container_only(name: str, yes: bool) -> None:
     if not yes and not typer.confirm(f"Remove container for profile {name}? Profile state will be kept."):
         raise typer.Exit(1)
     store = LcpStore()
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
     removed = DockerAdapter(store).remove_container(profile)
     if removed:
         typer.echo(f"removed container: {profile.container.name}")
@@ -228,7 +272,7 @@ def _remove_profile_runtime(name: str, yes: bool) -> None:
     if not profile_dir.exists():
         typer.echo(f"profile already absent: {profile_dir}")
         return
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
     if not yes and not typer.confirm(
         f"Remove profile {name}? This will stop bridge, remove container {profile.container.name}, and delete profile state at {profile_dir}."
     ):
@@ -370,8 +414,10 @@ def start(name: str, bridge: bool = typer.Option(True, help="Start lark-channel-
         _start_bridge_runtime(name)
         return
     store = LcpStore()
-    profile = store.load_profile(name)
-    DockerAdapter(store).start(profile)
+    profile = _load_profile_or_exit(store, name)
+    adapter = DockerAdapter(store)
+    _get_container_or_exit(adapter, profile)
+    adapter.start(profile)
     typer.echo(f"started: {profile.container.name}")
 
 
@@ -421,7 +467,8 @@ def bridge(ctx: typer.Context, name: str) -> None:
         return
 
     store = LcpStore()
-    profile = store.load_profile(name)
+    profile = _load_profile_or_exit(store, name)
+    _get_container_or_exit(DockerAdapter(store), profile)
     command = ["docker", "exec", "-it", profile.container.name, "lark-channel-bridge", *args]
     raise typer.Exit(subprocess.call(command))
 
