@@ -205,10 +205,12 @@ Operational behavior:
 - This command is interactive.
 - It may display QR codes or login/setup URLs.
 - The user may need to act in Feishu/Lark or a browser.
+- Watch the foreground output immediately after starting `run`.
+- If operating through a chat or remote agent session, promptly forward the QR code and setup URL to the user before they expire.
 - Keep it in foreground for initial setup and debugging.
 - After setup is confirmed, the user can stop it with `Ctrl+C`.
 
-Do not run this as a background detached process for initial setup.
+Do not run this as a background detached process for initial setup unless you have an explicit way to stream or inspect its output and stop it after setup.
 
 After foreground setup, bind `lark-cli` manually or let `start` do it automatically.
 
