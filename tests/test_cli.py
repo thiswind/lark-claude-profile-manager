@@ -3,6 +3,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from lcp import cli
+from lcp.docker_adapter import ExecResult
 from lcp.models import default_profile
 
 runner = CliRunner()
@@ -42,6 +43,9 @@ class FakeAdapter:
 
     def start(self, profile):
         self.started = True
+
+    def stop(self, profile):
+        self.stopped = True
 
 
 class FakeCreatorAdapter(FakeAdapter):
@@ -119,6 +123,7 @@ def test_bridge_help_shows_common_actions() -> None:
     assert result.exit_code == 0
     assert "lcp bridge <profile> run" in result.output
     assert "lcp bridge <profile> start" in result.output
+    assert "lcp bridge <profile> bind-lark-cli" in result.output
     assert "Foreground QR/debug" in result.output
     assert "Background run" in result.output
 
@@ -317,14 +322,102 @@ def test_bridge_start_uses_lcp_runtime_not_upstream_start(monkeypatch, tmp_path:
     monkeypatch.setattr(cli, "LcpStore", lambda: store)
     monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
     monkeypatch.setattr(cli.subprocess, "call", lambda command: calls.append(command) or 0)
+    monkeypatch.setattr(cli, "bind_lark_cli", lambda adapter, profile: ExecResult(0, "bound: cli_test"))
     monkeypatch.setattr(cli, "start_bridge", lambda adapter, profile: starts.append(profile.name) or type("Status", (), {"running": True, "pid": "123", "detail": ""})())
 
     result = runner.invoke(cli.app, ["bridge", "project1", "start"])
 
     assert result.exit_code == 0
+    assert "bound: cli_test" in result.output
     assert "bridge started: 123" in result.output
     assert starts == ["project1"]
     assert calls == []
+
+
+def test_bridge_start_fails_before_starting_bridge_when_lark_cli_bind_fails(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
+    starts = []
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "bind_lark_cli", lambda adapter, profile: ExecResult(2, "missing-config"))
+    monkeypatch.setattr(cli, "start_bridge", lambda adapter, profile: starts.append(profile.name))
+
+    result = runner.invoke(cli.app, ["bridge", "project1", "start"])
+
+    assert result.exit_code == 1
+    assert "missing-config" in result.output
+    assert "error: lark-cli bind failed for profile: project1" in result.output
+    assert "lcp bridge project1 run" in result.output
+    assert starts == []
+
+
+def test_bridge_bind_lark_cli_runs_manual_bind(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
+    binds = []
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "bind_lark_cli", lambda adapter, profile: binds.append(profile.name) or ExecResult(0, "bound: cli_test"))
+
+    result = runner.invoke(cli.app, ["bridge", "project1", "bind-lark-cli"])
+
+    assert result.exit_code == 0
+    assert "bound: cli_test" in result.output
+    assert binds == ["project1"]
+
+
+def test_bridge_bind_lark_cli_failure_exits(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "bind_lark_cli", lambda adapter, profile: ExecResult(1, "app mismatch"))
+
+    result = runner.invoke(cli.app, ["bridge", "project1", "bind-lark-cli"])
+
+    assert result.exit_code == 1
+    assert "app mismatch" in result.output
+    assert "error: lark-cli bind failed for profile: project1" in result.output
+
+
+def test_bridge_restart_binds_lark_cli_before_starting_bridge(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
+    events = []
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "stop_bridge", lambda adapter, profile: events.append("stop-bridge"))
+    monkeypatch.setattr(cli, "bind_lark_cli", lambda adapter, profile: events.append("bind") or ExecResult(0, "bound: cli_test"))
+    monkeypatch.setattr(cli, "start_bridge", lambda adapter, profile: events.append("start-bridge") or type("Status", (), {"running": True, "pid": "123", "detail": ""})())
+
+    result = runner.invoke(cli.app, ["bridge", "project1", "restart"])
+
+    assert result.exit_code == 0
+    assert events == ["stop-bridge", "bind", "start-bridge"]
+    assert "restarted: lcp-project1" in result.output
+
+
+def test_profile_verify_checks_lark_cli_binding(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
+    commands = []
+
+    def fake_verify(adapter, profile, run_claude=True):
+        from lcp.verify import verify_profile
+
+        adapter.exec = lambda profile, command: commands.append(command) or ExecResult(0, "ok")
+        return verify_profile(adapter, profile, run_claude=False)
+
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "verify_profile", fake_verify)
+
+    result = runner.invoke(cli.app, ["profile", "verify", "project1", "--no-run-claude"])
+
+    assert result.exit_code == 0
+    assert "ok: lark_cli_bound" in result.output
+    assert any(".lark-cli/lark-channel/config.json" in command for command in commands)
 
 
 def test_bridge_run_stays_foreground_proxy(monkeypatch, tmp_path: Path) -> None:

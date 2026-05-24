@@ -11,6 +11,7 @@ from rich.table import Table
 from .bridge import bridge_status, start_bridge, stop_bridge, BRIDGE_LOG
 from .docker_adapter import DockerAdapter
 from .installer import install_runtime
+from .lark_cli import bind_lark_cli
 from .models import Profile, container_name, default_profile
 from .selfcheck import collect_init_report
 from .store import LcpStore
@@ -52,6 +53,20 @@ def _get_container_or_exit(adapter: DockerAdapter, profile: Profile):
     if container is None:
         _fail(f"container not found: {profile.container.name}", f"run `lcp profile rm {profile.name}` to remove stale profile state, or recreate the profile")
     return container
+
+
+def _bind_lark_cli_or_exit(adapter: DockerAdapter, profile: Profile) -> None:
+    result = bind_lark_cli(adapter, profile)
+    if result.exit_code != 0:
+        output = result.output.strip()
+        if output:
+            typer.echo(output)
+        _fail(
+            f"lark-cli bind failed for profile: {profile.name}",
+            f"run `lcp bridge {profile.name} run` first if the bot has not been configured, or `lcp bridge {profile.name} bind-lark-cli` to retry",
+        )
+    output = result.output.strip()
+    typer.echo(output or "lark-cli bound")
 
 
 def _create_profile(name: str, desktop: str | None, install: bool) -> None:
@@ -194,6 +209,7 @@ def _start_bridge_runtime(name: str, start_container: bool = True) -> None:
     if start_container:
         adapter.start(profile)
         typer.echo(f"started: {profile.container.name}")
+    _bind_lark_cli_or_exit(adapter, profile)
     status = start_bridge(adapter, profile)
     if not status.running:
         typer.echo(status.detail)
@@ -221,12 +237,21 @@ def _restart_bridge_runtime(name: str) -> None:
     stop_bridge(adapter, profile)
     adapter.stop(profile)
     adapter.start(profile)
+    _bind_lark_cli_or_exit(adapter, profile)
     status = start_bridge(adapter, profile)
     if not status.running:
         typer.echo(status.detail)
         raise typer.Exit(1)
     typer.echo(f"restarted: {profile.container.name}")
     typer.echo(f"bridge started: {status.pid}")
+
+
+def _bind_lark_cli_runtime(name: str) -> None:
+    store = LcpStore()
+    profile = _load_profile_or_exit(store, name)
+    adapter = DockerAdapter(store)
+    _get_container_or_exit(adapter, profile)
+    _bind_lark_cli_or_exit(adapter, profile)
 
 
 def _show_profile_logs(name: str, bridge: bool) -> None:
@@ -436,12 +461,13 @@ def restart(name: str) -> None:
 
 \b
 Common actions:
-  lcp bridge <profile> run      Foreground QR/debug
-  lcp bridge <profile> start    Background run
-  lcp bridge <profile> status   Show status
-  lcp bridge <profile> logs     Show logs
-  lcp bridge <profile> stop     Stop bridge
-  lcp bridge <profile> restart  Restart bridge
+  lcp bridge <profile> run            Foreground QR/debug
+  lcp bridge <profile> start          Background run
+  lcp bridge <profile> status         Show status
+  lcp bridge <profile> logs           Show logs
+  lcp bridge <profile> stop           Stop bridge
+  lcp bridge <profile> restart        Restart bridge
+  lcp bridge <profile> bind-lark-cli  Bind lark-cli to this profile's bot
 
 Other arguments are proxied to lark-channel-bridge inside the container.
 """,
@@ -458,6 +484,9 @@ def bridge(ctx: typer.Context, name: str) -> None:
         return
     if action == "restart":
         _restart_bridge_runtime(name)
+        return
+    if action == "bind-lark-cli":
+        _bind_lark_cli_runtime(name)
         return
     if action == "status":
         _show_profile_status(name)
