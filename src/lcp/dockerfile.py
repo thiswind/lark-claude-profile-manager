@@ -25,7 +25,7 @@ RUN if getent passwd {user.uid} >/dev/null; then \
     && if ! getent group {user.gid} >/dev/null; then groupadd --gid {user.gid} {user.name}; fi \
     && if ! id -u {user.name} >/dev/null 2>&1; then useradd --uid {user.uid} --gid {user.gid} --create-home --shell /bin/bash {user.name}; fi \
     && mkdir -p /home/{user.name}/Desktop/Projects/lcp_profiles /cache/npm /cache/pnpm /cache/pip /cache/tmp /logs \
-    && printf '%s ALL=(ALL) NOPASSWD:ALL\n' {user.name} > /etc/sudoers.d/lcp-{user.name} \
+    && printf '%s ALL=(ALL) NOPASSWD:ALL\\n' {user.name} > /etc/sudoers.d/lcp-{user.name} \
     && chmod 0440 /etc/sudoers.d/lcp-{user.name} \
     && chown -R {user.uid}:{user.gid} /home/{user.name} /cache /logs
 

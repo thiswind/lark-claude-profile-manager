@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix generated profile Dockerfiles so sudoers newline escaping remains valid Dockerfile syntax.
 - Add a host-level Claude Code agent operations runbook and link it from README.
 - Bind profile-local `lark-cli` automatically before managed bridge start/restart, fail fast when the bot is not configured, and add `lcp bridge <profile> bind-lark-cli` for manual retry.
 - Mount host GitHub CLI config into profile containers so container `gh` can reuse the WSL host login.
