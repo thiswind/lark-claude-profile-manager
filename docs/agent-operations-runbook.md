@@ -15,15 +15,37 @@ Primary rule:
 
 Repository command context:
 
+- Do not assume the repository path.
+- If the current working directory is already inside the repository, use it.
+- If not, locate the repository before running development commands.
+- Prefer a user-provided path when available.
+- If no path is known, search only likely project roots and stop if there is more than one match.
+
+Safe repository discovery commands:
+
 ```bash
-cd /mnt/c/Users/Administrator/Desktop/Projects/Active/lark-claude-profile-manager
+git rev-parse --show-toplevel
+```
+
+If that fails, ask the user for the repository path or search likely project directories by name using the host agent's file-search mechanism. For Claude Code, prefer the file search tool over shell `find`.
+
+Search target:
+
+```text
+lark-claude-profile-manager
+```
+
+After locating the repository, run development commands from its root:
+
+```bash
+cd <repo-root>
 ```
 
 Runtime command context:
 
 - `lcp` is installed as a host command.
 - Daily LCP operations can run from any directory.
-- Development operations should run from the repository root.
+- Development operations should run from the repository root discovered above.
 
 Core model:
 
@@ -623,23 +645,46 @@ Failure: GitHub push rejected as non-fast-forward.
 
 Action:
 
-1. Check whether local and remote content differ:
+1. Identify the current branch and upstream. Do not assume `main` or `origin/main`.
 
    ```bash
-   git diff HEAD origin/main
+   git branch --show-current
+   git rev-parse --abbrev-ref --symbolic-full-name @{upstream}
+   ```
+
+2. Store the upstream ref from the command output as `<upstream>`.
+3. Check whether local and upstream content differ:
+
+   ```bash
+   git diff HEAD <upstream>
    git log --oneline --decorate -5 --all
    ```
 
-2. If the divergence is only duplicate-content commits with different SHA, rebase the latest valid local work onto `origin/main`.
-3. Do not force-push unless the user explicitly requests it and the target is not protected/shared.
+4. If the divergence is only duplicate-content commits with different SHA, rebase the latest valid local work onto `<upstream>`.
+5. Do not force-push unless the user explicitly requests it and the target is not protected/shared.
 
 ## Development workflow for LCP code changes
 
 Before editing code:
 
-```bash
-git status --short --branch
-```
+1. Confirm repository root:
+
+   ```bash
+   git rev-parse --show-toplevel
+   ```
+
+2. Confirm branch and upstream:
+
+   ```bash
+   git status --short --branch
+   git rev-parse --abbrev-ref --symbolic-full-name @{upstream}
+   ```
+
+3. If no upstream is configured, inspect remotes and ask the user before pushing:
+
+   ```bash
+   git remote -v
+   ```
 
 Read files before editing them.
 
@@ -664,13 +709,26 @@ git diff
 
 Commit only when the user asks or the current task explicitly includes committing and pushing.
 
-Use one-shot identity if git author identity is missing. Do not modify git config automatically.
+Use the repository or host Git identity if it is already configured:
 
 ```bash
-GIT_AUTHOR_NAME='thiswind' \
-GIT_AUTHOR_EMAIL='thiswind@users.noreply.github.com' \
-GIT_COMMITTER_NAME='thiswind' \
-GIT_COMMITTER_EMAIL='thiswind@users.noreply.github.com' \
+git config --get user.name
+git config --get user.email
+```
+
+If Git identity is missing:
+
+1. Do not modify git config automatically.
+2. Ask the user which author name and email to use, or derive them only from explicit project/user instructions.
+3. Use one-shot environment variables for that commit only.
+
+Template:
+
+```bash
+GIT_AUTHOR_NAME='<author-name>' \
+GIT_AUTHOR_EMAIL='<author-email>' \
+GIT_COMMITTER_NAME='<committer-name>' \
+GIT_COMMITTER_EMAIL='<committer-email>' \
 git commit -m "$(cat <<'EOF'
 Commit title.
 
@@ -683,9 +741,24 @@ EOF
 
 Push:
 
-```bash
-git push origin main
-```
+1. Identify the current branch and upstream:
+
+   ```bash
+   git branch --show-current
+   git rev-parse --abbrev-ref --symbolic-full-name @{upstream}
+   ```
+
+2. Push to the configured upstream when it exists:
+
+   ```bash
+   git push
+   ```
+
+3. If there is no upstream, inspect remotes and ask before choosing a remote or branch:
+
+   ```bash
+   git remote -v
+   ```
 
 If GitHub API is needed, use `gh api`. Prefer normal `git push` when git transport is working.
 

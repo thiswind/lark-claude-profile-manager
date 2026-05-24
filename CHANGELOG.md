@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Make the agent operations runbook portable by removing host-specific repository paths, Git identity, and branch/remote assumptions.
+
 ## 0.1.0 - 2026-05-24
 
 - Fix generated profile Dockerfiles so sudoers newline escaping remains valid Dockerfile syntax.
