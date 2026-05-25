@@ -1,10 +1,18 @@
+import shlex
+
 from .docker_adapter import DockerAdapter, ExecResult
 from .models import Profile
 
 
 NPM_CACHE_ARG = "--cache /cache/npm"
 CLAUDE_NATIVE_FIXUP = "cd $(npm root -g)/@anthropic-ai/claude-code && pkg=$(case $(node -p 'process.arch') in x64) echo @anthropic-ai/claude-code-linux-x64 ;; arm64) echo @anthropic-ai/claude-code-linux-arm64 ;; esac) && if [ -n \"$pkg\" ]; then npm install \"$pkg\" --cache /cache/npm; fi && node install.cjs"
-GIT_IDENTITY_SETUP = "git config --global user.name 'thiswind' && git config --global user.email 'thiswind@gmail.com'"
+
+
+def git_identity_setup_command(profile: Profile) -> str | None:
+    identity = profile.gitIdentity
+    if not identity.name or not identity.email:
+        return None
+    return f"git config --global user.name {shlex.quote(identity.name)} && git config --global user.email {shlex.quote(identity.email)}"
 
 
 def install_runtime(adapter: DockerAdapter, profile: Profile) -> list[ExecResult]:
@@ -14,13 +22,15 @@ def install_runtime(adapter: DockerAdapter, profile: Profile) -> list[ExecResult
     ]
     user_commands = [
         "mkdir -p ~/.npm-global /cache/npm /cache/tmp",
-        GIT_IDENTITY_SETUP,
         "npm config set cache /cache/npm --global",
         f"npm install -g @anthropic-ai/claude-code --include=optional {NPM_CACHE_ARG}",
         CLAUDE_NATIVE_FIXUP,
         f"npm install -g @larksuite/cli {NPM_CACHE_ARG}",
         f"npm install -g lark-channel-bridge {NPM_CACHE_ARG}",
     ]
+    git_identity_command = git_identity_setup_command(profile)
+    if git_identity_command:
+        user_commands.insert(1, git_identity_command)
     results: list[ExecResult] = []
     for command in setup_commands:
         result = adapter.exec_root(profile, command)

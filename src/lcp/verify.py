@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import shlex
 
 from .docker_adapter import DockerAdapter
 from .lark_cli import LARK_CLI_BOUND_CHECK
@@ -28,7 +29,7 @@ def verify_profile(adapter: DockerAdapter, profile: Profile, run_claude: bool = 
     run("claude_config", f"test -d {user.home}/.claude || test -f {user.home}/.claude.json")
     run("node", "node --version | grep '^v24\\.'")
     run("npm", "npm --version")
-    run("git_identity", "test -n \"$(git config --global --get user.name)\" && test -n \"$(git config --global --get user.email)\"")
+    run("git_identity", _git_identity_check(profile))
     run("claude_version", "claude --version")
     if run_claude:
         run("claude_non_interactive", "claude -p 'reply ok' --output-format stream-json --verbose")
@@ -38,3 +39,21 @@ def verify_profile(adapter: DockerAdapter, profile: Profile, run_claude: bool = 
     run("bridge_help", "lark-channel-bridge --help >/tmp/lcp-bridge-help.txt && test -s /tmp/lcp-bridge-help.txt")
 
     return checks
+
+
+def _git_identity_check(profile: Profile) -> str:
+    expected = profile.gitIdentity
+    name_check = 'test -n "$name"'
+    email_check = 'test -n "$email"'
+    if expected.name:
+        name_check = f"test \"$name\" = {shlex.quote(expected.name)}"
+    if expected.email:
+        email_check = f"test \"$email\" = {shlex.quote(expected.email)}"
+    return f"""
+name=$(git config --global --get user.name || true)
+email=$(git config --global --get user.email || true)
+case "$name $email" in
+  *[Cc]laude*|*[Aa]nthropic*) echo "forbidden AI contributor identity: $name <$email>"; exit 1 ;;
+esac
+{name_check} && {email_check}
+""".strip()

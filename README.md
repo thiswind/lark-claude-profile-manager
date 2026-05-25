@@ -166,6 +166,8 @@ lcp profile verify <name>
 lcp profile rm <name>
 ```
 
+创建 profile 时，LCP 会把宿主机配置的 Git 身份写入容器，并拒绝使用 Claude / Anthropic 这类 AI assistant 身份作为 Git author、committer 或 co-author。
+
 跳过创建时的工具安装：
 
 ```bash

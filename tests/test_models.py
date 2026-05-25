@@ -17,7 +17,17 @@ def test_invalid_profile_name(name: str) -> None:
 
 
 def test_default_profile_uses_desktop_workspace() -> None:
-    profile = default_profile("project1", Path("/mnt/c/Users/Administrator/Desktop"), ["/mnt/c/Users/Administrator/Desktop"], "amd64", "thiswind", 1000, 1000)
+    profile = default_profile(
+        "project1",
+        Path("/mnt/c/Users/Administrator/Desktop"),
+        ["/mnt/c/Users/Administrator/Desktop"],
+        "amd64",
+        "thiswind",
+        1000,
+        1000,
+        git_name="thiswind",
+        git_email="thiswind@gmail.com",
+    )
     assert profile.container.image == "lcp/project1:base"
     assert profile.container.baseImage == "ubuntu:24.04"
     assert profile.container.user.name == "thiswind"
@@ -26,6 +36,8 @@ def test_default_profile_uses_desktop_workspace() -> None:
     assert profile.runtime.restartPolicy == "always"
     assert profile.mounts.desktop.hostPath == "/mnt/c/Users/Administrator/Desktop"
     assert profile.mounts.desktop.compatSymlinks == ["/mnt/c/Users/Administrator/Desktop"]
+    assert profile.gitIdentity.name == "thiswind"
+    assert profile.gitIdentity.email == "thiswind@gmail.com"
 
 
 def test_profile_round_trip() -> None:

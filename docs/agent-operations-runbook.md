@@ -716,6 +716,12 @@ git config --get user.name
 git config --get user.email
 ```
 
+Product-level attribution rule:
+
+- Do not use Claude, Claude Code, Anthropic, or AI assistant identities as Git authors, committers, or co-authors.
+- Do not add `Co-authored-by` trailers for Claude, Anthropic, or AI assistants.
+- Treat this as an LCP product rule for every profile container, not as a host-specific preference.
+
 If Git identity is missing:
 
 1. Do not modify git config automatically.

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lcp.config import ClaudeConfig, DesktopConfig, DockerConfig, GpuMachineConfig, HostUserConfig, ImagesConfig, MachineConfig, PlatformConfig
+from lcp.config import ClaudeConfig, DesktopConfig, DockerConfig, GitIdentityConfig, GpuMachineConfig, HostUserConfig, ImagesConfig, MachineConfig, PlatformConfig
 from lcp.selfcheck import InitCheck, InitReport, _desktop_source
 
 
@@ -13,6 +13,7 @@ def make_config() -> MachineConfig:
         gpu=GpuMachineConfig(),
         images=ImagesConfig(),
         claude=ClaudeConfig(configDir="/home/thiswind/.claude", configFile="/home/thiswind/.claude.json"),
+        gitIdentity=GitIdentityConfig(name="thiswind", email="thiswind@gmail.com"),
     )
 
 

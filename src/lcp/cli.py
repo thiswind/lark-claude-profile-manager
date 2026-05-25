@@ -12,6 +12,7 @@ from . import __version__
 from .bridge import bridge_status, start_bridge, stop_bridge, BRIDGE_LOG
 from .docker_adapter import DockerAdapter
 from .installer import install_runtime
+from .integrations.service import IntegrationService
 from .lark_cli import bind_lark_cli
 from .models import Profile, container_name, default_profile
 from .selfcheck import collect_init_report
@@ -22,7 +23,9 @@ from .verify import verify_profile
 app = typer.Typer(help="Manage Lark Claude profile containers", context_settings={"help_option_names": ["-h", "--help"]})
 profile_app = typer.Typer(help="Manage profiles", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 rm_app = typer.Typer(help="Debug removal commands", context_settings={"help_option_names": ["-h", "--help"]})
+integration_app = typer.Typer(help="Manage profile host integrations", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 app.add_typer(profile_app, name="profile")
+app.add_typer(integration_app, name="integration")
 app.add_typer(rm_app, name="rm", hidden=True)
 
 
@@ -53,6 +56,11 @@ def _load_profile_or_exit(store: LcpStore, name: str) -> Profile:
         _fail(f"profile not found: {name}", "run `lcp profile list` to see existing profiles, or `lcp profile create <name>` to create one")
     except (json.JSONDecodeError, ValidationError) as exc:
         _fail(f"profile state is invalid: {store.profile_dir(name) / 'profile.json'}", str(exc))
+
+
+def _is_ai_contributor_identity(name: str | None, email: str | None) -> bool:
+    value = f"{name or ''} {email or ''}".lower()
+    return "claude" in value or "anthropic" in value
 
 
 def _profile_from_name_or_exit(name: str) -> str:
@@ -94,6 +102,13 @@ def _create_profile(name: str, desktop: str | None, install: bool) -> None:
         raise typer.Exit(1)
     if store.config_file.exists() and desktop is None:
         config = store.load_config()
+        if not config.gitIdentity.name or not config.gitIdentity.email or _is_ai_contributor_identity(config.gitIdentity.name, config.gitIdentity.email):
+            report = collect_init_report(desktop)
+            if report.has_required_failures:
+                print_checks(report.checks)
+                raise typer.Exit(1)
+            config = report.config
+            store.save_config(config)
         desktop_host_path = Path(config.desktop.hostPath)
         compat_symlinks = [config.desktop.hostPath] if config.platform.environment == "wsl" else []
         user_name = config.hostUser.name
@@ -114,7 +129,18 @@ def _create_profile(name: str, desktop: str | None, install: bool) -> None:
         gid = config.hostUser.gid
         display_name = config.hostUser.displayName
         arch = config.platform.arch
-    profile = default_profile(name, desktop_host_path, compat_symlinks, arch, user_name, uid, gid, display_name)
+    profile = default_profile(
+        name,
+        desktop_host_path,
+        compat_symlinks,
+        arch,
+        user_name,
+        uid,
+        gid,
+        display_name,
+        config.gitIdentity.name,
+        config.gitIdentity.email,
+    )
     adapter = DockerAdapter(store)
     if adapter.get_container_or_none(profile):
         typer.echo(f"container already exists: {profile.container.name}")

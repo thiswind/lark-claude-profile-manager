@@ -5,7 +5,7 @@ import subprocess
 
 import docker
 
-from .config import ClaudeConfig, DesktopConfig, DockerConfig, GpuMachineConfig, HostUserConfig, ImagesConfig, MachineConfig, PlatformConfig
+from .config import ClaudeConfig, DesktopConfig, DockerConfig, GitIdentityConfig, GpuMachineConfig, HostUserConfig, ImagesConfig, MachineConfig, PlatformConfig
 from .desktop import DesktopResolver
 from .host_user import current_host_user
 from .models import UBUNTU_LTS_IMAGE, container_desktop
@@ -61,6 +61,12 @@ def collect_init_report(explicit_desktop: str | None = None, container_user: str
     claude_ok = claude_dir.exists() or claude_json.exists()
     checks.append(InitCheck("Claude config", "ok" if claude_ok else "warn", f"{claude_dir} / {claude_json}", required=False))
 
+    git_identity = _git_identity_config()
+    git_identity_ok = bool(git_identity.name and git_identity.email)
+    git_identity_safe = git_identity_ok and not _is_ai_contributor_identity(git_identity.name, git_identity.email)
+    git_identity_value = f"{git_identity.name or 'missing'} <{git_identity.email or 'missing'}>"
+    checks.append(InitCheck("Git identity", "ok" if git_identity_safe else "fail", git_identity_value))
+
     checks.append(InitCheck("Ubuntu LTS image", "ok", UBUNTU_LTS_IMAGE))
     checks.append(InitCheck("Node.js policy", "ok", "24 LTS in profile image"))
 
@@ -83,6 +89,7 @@ def collect_init_report(explicit_desktop: str | None = None, container_user: str
         gpu=gpu_config,
         images=ImagesConfig(),
         claude=ClaudeConfig(configDir=str(claude_dir), configFile=str(claude_json)),
+        gitIdentity=git_identity,
     )
     return InitReport(config=config, checks=checks)
 
@@ -107,6 +114,35 @@ def _desktop_source(environment: str, explicit_desktop: str | None) -> str:
     if environment == "macos":
         return "macos-default"
     return "linux-xdg-or-home"
+
+
+def _git_identity_config() -> GitIdentityConfig:
+    return GitIdentityConfig(
+        name=_git_config_value("user.name"),
+        email=_git_config_value("user.email"),
+    )
+
+
+def _git_config_value(key: str) -> str | None:
+    git = shutil.which("git")
+    if not git:
+        return None
+    try:
+        result = subprocess.run(
+            [git, "config", "--global", "--get", key],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
+def _is_ai_contributor_identity(name: str | None, email: str | None) -> bool:
+    value = f"{name or ''} {email or ''}".lower()
+    return "claude" in value or "anthropic" in value
 
 
 def _docker_config() -> DockerConfig:

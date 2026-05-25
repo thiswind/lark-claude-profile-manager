@@ -59,6 +59,11 @@ class WorkspaceConfig(BaseModel):
     defaultCwd: str
 
 
+class GitIdentityConfig(BaseModel):
+    name: str | None = None
+    email: str | None = None
+
+
 class DesktopMount(BaseModel):
     hostPath: str
     containerPath: str
@@ -98,6 +103,7 @@ class Profile(BaseModel):
     container: ContainerConfig
     workspace: WorkspaceConfig
     mounts: MountConfig
+    gitIdentity: GitIdentityConfig = Field(default_factory=GitIdentityConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     verification: VerificationConfig = Field(default_factory=VerificationConfig)
 
@@ -130,6 +136,8 @@ def default_profile(
     uid: int,
     gid: int,
     display_name: str | None = None,
+    git_name: str | None = None,
+    git_email: str | None = None,
 ) -> Profile:
     container = container_name(name)
     user_home = container_home(user_name)
@@ -146,6 +154,7 @@ def default_profile(
             user=UserConfig(name=user_name, uid=uid, gid=gid, home=user_home, displayName=display_name),
         ),
         workspace=WorkspaceConfig(defaultCwd=cwd),
+        gitIdentity=GitIdentityConfig(name=git_name, email=git_email),
         mounts=MountConfig(
             desktop=DesktopMount(
                 hostPath=str(desktop_host_path),

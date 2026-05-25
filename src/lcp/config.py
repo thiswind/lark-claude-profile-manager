@@ -48,6 +48,11 @@ class ClaudeConfig(BaseModel):
     configFile: str
 
 
+class GitIdentityConfig(BaseModel):
+    name: str | None = None
+    email: str | None = None
+
+
 class MachineConfig(BaseModel):
     version: int = 1
     platform: PlatformConfig
@@ -57,6 +62,7 @@ class MachineConfig(BaseModel):
     gpu: GpuMachineConfig
     images: ImagesConfig
     claude: ClaudeConfig
+    gitIdentity: GitIdentityConfig = GitIdentityConfig()
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
