@@ -6,7 +6,26 @@ build-backend = "hatchling.build"
 name = "lark-claude-profile-manager"
 version = "0.1.0"
 description = "Manage Lark Claude profile containers"
+readme = "README.md"
 requires-python = ">=3.11"
+license = "PolyForm-Noncommercial-1.0.0"
+authors = [
+  { name = "thiswind" },
+]
+keywords = ["claude", "docker", "lark", "feishu", "profile-manager"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development",
+]
 dependencies = [
   "docker>=7.1.0",
   "pydantic>=2.8.0",
@@ -16,8 +35,16 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "build>=1.2.0",
   "pytest>=8.0.0",
+  "twine>=5.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/thiswind/lark-claude-profile-manager"
+Repository = "https://github.com/thiswind/lark-claude-profile-manager"
+Issues = "https://github.com/thiswind/lark-claude-profile-manager/issues"
+Changelog = "https://github.com/thiswind/lark-claude-profile-manager/blob/main/CHANGELOG.md"
 
 [project.scripts]
 lcp = "lcp.cli:app"

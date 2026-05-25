@@ -18,7 +18,31 @@
 
 ## 安装
 
-在项目目录中运行：
+从 GitHub 安装当前主分支：
+
+```bash
+python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git'
+```
+
+用 `uv` 安装为工具：
+
+```bash
+uv tool install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git'
+```
+
+用 `pipx` 安装为工具：
+
+```bash
+pipx install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git'
+```
+
+从发布标签安装时，把 `<tag>` 替换成具体版本标签：
+
+```bash
+python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@<tag>'
+```
+
+从本地源码目录安装：
 
 ```bash
 python -m pip install --user .
@@ -30,10 +54,16 @@ python -m pip install --user .
 python -m pip install --user -e '.[dev]'
 ```
 
-Windows PowerShell：
+Windows PowerShell 开发安装：
 
 ```powershell
 python -m pip install --user -e .[dev]
+```
+
+检查安装版本：
+
+```bash
+lcp --version
 ```
 
 如果安装后找不到 `lcp`，把 Python user scripts 目录加入 `PATH`。
@@ -257,6 +287,18 @@ Windows: C:\Users\<user>\.lcp
 ```
 
 所以在 WSL 和 PowerShell 中看到的 profile 列表可能不同。
+
+## License
+
+LCP 是 source-available 软件，不是 permissive open source。
+
+本项目使用 PolyForm Noncommercial License 1.0.0。非商业用途按 `LICENSE` 授权；商业用途需要项目所有者另行书面许可。
+
+更多说明：
+
+- `LICENSE`：完整 PolyForm Noncommercial License 1.0.0 文本。
+- `COMMERCIAL_USE.md`：商业使用许可说明。
+- `CONTRIBUTING.md`：贡献者授权和 relicensing 权限说明。
 
 ## 故障排查
 

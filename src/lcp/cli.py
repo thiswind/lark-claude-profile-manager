@@ -8,6 +8,7 @@ from docker.errors import APIError
 from pydantic import ValidationError
 from rich.table import Table
 
+from . import __version__
 from .bridge import bridge_status, start_bridge, stop_bridge, BRIDGE_LOG
 from .docker_adapter import DockerAdapter
 from .installer import install_runtime
@@ -23,6 +24,19 @@ profile_app = typer.Typer(help="Manage profiles", no_args_is_help=True, context_
 rm_app = typer.Typer(help="Debug removal commands", context_settings={"help_option_names": ["-h", "--help"]})
 app.add_typer(profile_app, name="profile")
 app.add_typer(rm_app, name="rm", hidden=True)
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"lcp {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(False, "--version", callback=_version_callback, is_eager=True, help="Show version and exit"),
+) -> None:
+    pass
 
 
 def _fail(message: str, hint: str | None = None) -> None:

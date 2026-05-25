@@ -82,6 +82,13 @@ def test_help_short_option_works() -> None:
     assert "Manage Lark Claude profile containers" in result.output
 
 
+def test_version_option_shows_package_version() -> None:
+    result = runner.invoke(cli.app, ["--version"])
+
+    assert result.exit_code == 0
+    assert result.output.strip() == "lcp 0.1.0"
+
+
 def test_help_shows_grouped_commands_and_hides_legacy_lifecycle_commands() -> None:
     result = runner.invoke(cli.app, ["--help"])
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Prepare package metadata and installation docs for pip, uv, and pipx Git-based installs.
+- Add `lcp --version` for installed package verification.
+- Add PolyForm Noncommercial 1.0.0 licensing, commercial-use guidance, and contributor relicensing terms.
 - Make the agent operations runbook portable by removing host-specific repository paths, Git identity, and branch/remote assumptions.
 
 ## 0.1.0 - 2026-05-24
