@@ -18,28 +18,16 @@
 
 ## 安装
 
-从 GitHub 安装当前主分支：
+默认使用 `pip` 从 GitHub 源码安装。建议安装发布标签版本，例如当前版本 `0.1.2`：
+
+```bash
+python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.1.2'
+```
+
+如果希望始终安装当前主分支：
 
 ```bash
 python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git'
-```
-
-用 `uv` 安装为工具：
-
-```bash
-uv tool install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git'
-```
-
-用 `pipx` 安装为工具：
-
-```bash
-pipx install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git'
-```
-
-从发布标签安装时，把 `<tag>` 替换成具体版本标签：
-
-```bash
-python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@<tag>'
 ```
 
 从本地源码目录安装：
@@ -58,6 +46,13 @@ Windows PowerShell 开发安装：
 
 ```powershell
 python -m pip install --user -e .[dev]
+```
+
+其它安装方式也可以使用，但不是默认推荐路径：
+
+```bash
+uv tool install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.1.2'
+pipx install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.1.2'
 ```
 
 检查安装版本：

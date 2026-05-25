@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Clarify that the default install path is `pip` from the GitHub source/tag, with `uv` and `pipx` as secondary options.
+
 ## 0.1.2 - 2026-05-25
 
 - Add profile-level host integrations for `git`, `github`, and `vercel` with `list`, `doctor`, `grant`, `revoke`, `status`, `apply`, and `verify` commands.
