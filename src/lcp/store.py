@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 import shutil
+from contextlib import contextmanager
 
 from .config import MachineConfig
 from .models import Profile
@@ -54,7 +55,10 @@ class LcpStore:
     def save_profile(self, profile: Profile) -> None:
         profile_dir = self.ensure_profile_dirs(profile.name)
         data = profile.model_dump(mode="json")
-        (profile_dir / "profile.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        target = profile_dir / "profile.json"
+        tmp = profile_dir / "profile.json.tmp"
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(target)
 
     def load_profile(self, name: str) -> Profile:
         data = json.loads((self.profile_dir(name) / "profile.json").read_text(encoding="utf-8"))
@@ -69,3 +73,31 @@ class LcpStore:
         if not self.profiles_dir.exists():
             return []
         return sorted(path.name for path in self.profiles_dir.iterdir() if (path / "profile.json").exists())
+
+    def integration_dir(self, profile_name: str, provider: str) -> Path:
+        return self.profile_dir(profile_name) / "integrations" / provider
+
+    def integration_snapshot_dir(self, profile_name: str, provider: str) -> Path:
+        return self.integration_dir(profile_name, provider) / "snapshot"
+
+    def ensure_integration_dir(self, profile_name: str, provider: str) -> Path:
+        integration_dir = self.integration_dir(profile_name, provider)
+        ensure_dir(integration_dir)
+        ensure_dir(integration_dir / "snapshot")
+        ensure_dir(integration_dir / "trash")
+        integration_dir.chmod(0o700)
+        (integration_dir / "snapshot").chmod(0o700)
+        (integration_dir / "trash").chmod(0o700)
+        return integration_dir
+
+    @contextmanager
+    def profile_lock(self, name: str):
+        lock_dir = self.profile_dir(name) / ".lock"
+        try:
+            lock_dir.mkdir(parents=True)
+        except FileExistsError as exc:
+            raise RuntimeError(f"profile is locked: {name}") from exc
+        try:
+            yield
+        finally:
+            lock_dir.rmdir()

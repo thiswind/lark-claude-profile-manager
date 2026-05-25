@@ -353,6 +353,159 @@ def _remove_profile_runtime(name: str, yes: bool) -> None:
     typer.echo(f"removed profile state: {removed_profile}")
 
 
+def _list_integrations() -> None:
+    service = IntegrationService(LcpStore())
+    table = Table(show_header=True)
+    table.add_column("provider")
+    table.add_column("host")
+    table.add_column("version")
+    table.add_column("description")
+    for info in service.list_providers():
+        table.add_row(info.name, "ok" if info.host.ok else "missing", info.host.version or "-", info.description)
+    console.print(table)
+
+
+def _doctor_integration(provider: str) -> None:
+    try:
+        check = IntegrationService(LcpStore()).doctor(provider)
+    except ValueError as exc:
+        _fail(str(exc), "run `lcp integration list` to see available providers")
+    typer.echo(f"provider: {check.provider}")
+    typer.echo(f"status: {'ok' if check.ok else 'failed'}")
+    if check.version:
+        typer.echo(f"version: {check.version}")
+    if check.authPath:
+        typer.echo(f"auth path: {check.authPath}")
+    if check.message:
+        typer.echo(check.message)
+    if not check.ok:
+        raise typer.Exit(1)
+
+
+def _show_integration_status(name: str) -> None:
+    store = LcpStore()
+    profile = _load_profile_or_exit(store, name)
+    if not profile.integrations.providers:
+        typer.echo("no integrations configured")
+        return
+    for provider, state in sorted(profile.integrations.providers.items()):
+        typer.echo(f"{provider}: {state.effective.status}")
+        typer.echo(f"  enabled: {state.desired.enabled}")
+        if state.desired.hostVersion:
+            typer.echo(f"  host version: {state.desired.hostVersion}")
+        if state.desired.config.get("account"):
+            typer.echo(f"  account: {state.desired.config['account']}")
+        if state.desired.snapshotId:
+            typer.echo(f"  snapshot: {state.desired.snapshotId}")
+        if state.effective.reason:
+            typer.echo(f"  reason: {state.effective.reason}")
+        if state.effective.lastError:
+            typer.echo(f"  error: {state.effective.lastError}")
+
+
+def _grant_integration(name: str, provider: str) -> None:
+    store = LcpStore()
+    try:
+        with store.profile_lock(name):
+            profile = _load_profile_or_exit(store, name)
+            updated = IntegrationService(store).grant(profile, provider)
+            store.save_profile(updated)
+    except RuntimeError as exc:
+        _fail(str(exc))
+    except ValueError as exc:
+        _fail(str(exc), "run `lcp integration list` to see available providers")
+    typer.echo(f"granted: {provider}")
+    typer.echo(f"run `lcp integration apply {name} --dry-run` to preview container changes")
+
+
+def _revoke_integration(name: str, provider: str) -> None:
+    store = LcpStore()
+    try:
+        with store.profile_lock(name):
+            profile = _load_profile_or_exit(store, name)
+            updated = IntegrationService(store).revoke(profile, provider)
+            store.save_profile(updated)
+    except RuntimeError as exc:
+        _fail(str(exc))
+    except ValueError as exc:
+        _fail(str(exc), "run `lcp integration list` to see available providers")
+    typer.echo(f"revoked: {provider}")
+    typer.echo(f"run `lcp integration apply {name} --dry-run` to preview container changes")
+
+
+def _verify_integration(name: str, provider: str | None) -> None:
+    store = LcpStore()
+    profile = _load_profile_or_exit(store, name)
+    adapter = DockerAdapter(store)
+    _get_container_or_exit(adapter, profile)
+    try:
+        results = IntegrationService(store).verify(adapter, profile, provider)
+    except (RuntimeError, ValueError) as exc:
+        _fail(str(exc))
+    failures = 0
+    for result in results:
+        mark = "ok" if result.ok else "failed"
+        command = f" command={result.command}" if result.command else ""
+        typer.echo(f"{mark}: {result.provider}{command}")
+        if result.output:
+            typer.echo(result.output)
+        if not result.ok:
+            failures += 1
+    if failures:
+        raise typer.Exit(1)
+
+
+def _apply_integration(name: str, dry_run: bool, yes: bool, verbose: bool, reuse_matching: bool) -> None:
+    store = LcpStore()
+    service = IntegrationService(store)
+    try:
+        with store.profile_lock(name):
+            profile = _load_profile_or_exit(store, name)
+            plan = service.plan(profile)
+            if dry_run:
+                if not plan.steps:
+                    typer.echo("no integration changes")
+                    return
+                for step in plan.steps:
+                    typer.echo(f"{step.provider}: {step.action} - {step.reason}")
+                return
+            if not yes and not typer.confirm(f"Apply integrations for {name}? This may recreate container {profile.container.name}."):
+                raise typer.Exit(1)
+            adapter = DockerAdapter(store)
+            container = _get_container_or_exit(adapter, profile)
+            if container.status != "running":
+                adapter.start(profile)
+                typer.echo(f"started: {profile.container.name}")
+            if any(step.action == "recreate" for step in plan.steps):
+                stop_bridge(adapter, profile)
+                adapter.recreate_container(profile)
+                typer.echo(f"recreated: {profile.container.name}")
+                for result in install_runtime(adapter, profile):
+                    if result.exit_code != 0:
+                        raise RuntimeError(result.output.strip() or "runtime install failed after recreate")
+            def progress(message: str) -> None:
+                if verbose:
+                    typer.echo(message)
+            updated, results = service.apply(adapter, profile, reuse_matching=reuse_matching, progress=progress)
+            store.save_profile(updated)
+    except RuntimeError as exc:
+        try:
+            store.save_profile(profile)
+        except Exception:
+            pass
+        _fail(str(exc))
+    except ValueError as exc:
+        _fail(str(exc), "run `lcp integration list` to see available providers")
+    for result in results:
+        mark = "ok" if result.ok else "failed"
+        typer.echo(f"{mark}: {result.provider} command={result.command}")
+        if result.output:
+            typer.echo(result.output)
+    if any(not result.ok for result in results):
+        raise typer.Exit(1)
+    typer.echo("integrations applied")
+
+
 @app.command()
 def init(
     desktop: str | None = typer.Option(None, help="Explicit host Desktop path"),
@@ -432,6 +585,47 @@ def profile_restore(name: str, image_tar: str = typer.Option(..., help="Snapshot
 @profile_app.command("rm")
 def profile_rm(name: str, yes: bool = typer.Option(False, "--yes", "-y", help="Confirm removal")) -> None:
     _remove_profile_runtime(name, yes)
+
+
+@integration_app.command("list")
+def integration_list() -> None:
+    _list_integrations()
+
+
+@integration_app.command("doctor")
+def integration_doctor(provider: str) -> None:
+    _doctor_integration(provider)
+
+
+@integration_app.command("status")
+def integration_status(name: str) -> None:
+    _show_integration_status(name)
+
+
+@integration_app.command("grant")
+def integration_grant(name: str, provider: str) -> None:
+    _grant_integration(name, provider)
+
+
+@integration_app.command("revoke")
+def integration_revoke(name: str, provider: str) -> None:
+    _revoke_integration(name, provider)
+
+
+@integration_app.command("verify")
+def integration_verify(name: str, provider: str | None = None) -> None:
+    _verify_integration(name, provider)
+
+
+@integration_app.command("apply")
+def integration_apply(
+    name: str,
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without touching the container"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm real apply"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show install/configure commands"),
+    reuse_matching: bool = typer.Option(False, "--reuse-matching", help="Reuse matching container CLI versions when supported"),
+) -> None:
+    _apply_integration(name, dry_run, yes, verbose, reuse_matching)
 
 
 @app.command(hidden=True)

@@ -18,7 +18,7 @@ def git_identity_setup_command(profile: Profile) -> str | None:
 def install_runtime(adapter: DockerAdapter, profile: Profile) -> list[ExecResult]:
     user = profile.container.user
     setup_commands = [
-        f"mkdir -p /cache/npm /cache/tmp /cache/pnpm /cache/pip && chown -R {user.uid}:{user.gid} /cache /logs {user.home}",
+        f"mkdir -p /cache/npm /cache/tmp /cache/pnpm /cache/pip /logs {user.home}/.npm-global {user.home}/.local/share {user.home}/.config {user.home}/.cache && chown -R {user.uid}:{user.gid} /cache /logs {user.home}/.npm-global {user.home}/.cache && chown {user.uid}:{user.gid} {user.home} {user.home}/.local {user.home}/.local/share {user.home}/.config",
     ]
     user_commands = [
         "mkdir -p ~/.npm-global /cache/npm /cache/tmp",

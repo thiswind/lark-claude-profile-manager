@@ -8,6 +8,7 @@ from docker.errors import NotFound
 from docker.models.containers import Container
 
 from .dockerfile import render_profile_dockerfile
+from .integrations.service import IntegrationService
 from .models import Profile, UBUNTU_LTS_IMAGE
 from .store import LcpStore
 
@@ -88,6 +89,14 @@ class DockerAdapter:
             return False
         container.remove(force=True)
         return True
+
+    def recreate_container(self, profile: Profile) -> Container:
+        container = self.get_container_or_none(profile)
+        if container is not None:
+            container.remove(force=True)
+        new_container = self.create_profile_container(profile)
+        self.start(profile)
+        return new_container
 
     def start(self, profile: Profile) -> None:
         container = self.get_container(profile)
@@ -181,8 +190,11 @@ class DockerAdapter:
                 binds[str(claude_dir)] = {"bind": f"{user_home}/.claude", "mode": "rw"}
             if claude_json.exists():
                 binds[str(claude_json)] = {"bind": f"{user_home}/.claude.json", "mode": "rw"}
+        for mount in IntegrationService(self.store).mounts(profile):
+            binds[mount.hostPath] = {"bind": mount.containerPath, "mode": mount.mode}
+        github_state_exists = "github" in profile.integrations.providers
         github_cli = profile.mounts.githubCli
-        if github_cli and github_cli.shareConfig:
+        if not github_state_exists and github_cli and github_cli.shareConfig:
             gh_dir = Path(github_cli.hostConfigDir)
             if gh_dir.exists():
                 binds[str(gh_dir)] = {"bind": f"{user_home}/.config/gh", "mode": "rw"}

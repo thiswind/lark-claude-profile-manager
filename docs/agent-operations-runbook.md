@@ -67,6 +67,15 @@ Profile state lives outside the repository:
 
 Do not commit runtime state.
 
+Host integration state lives with the profile:
+
+```text
+~/.lcp/profiles/<profile>/integrations/<provider>/snapshot/
+~/.lcp/profiles/<profile>/integrations/<provider>/trash/
+```
+
+Integration snapshots may contain copied credentials. Do not commit, paste, or upload them.
+
 ## Safety rules
 
 Before destructive operations:
@@ -115,6 +124,85 @@ docker version
 ```
 
 Use Docker CLI only for inspection unless explicitly recovering a failure.
+
+## Manage host integrations
+
+Host integrations grant one profile access to selected host tool credentials without directly sharing mutable host auth directories.
+
+Built-in providers:
+
+- `git` configures the host Git identity inside the profile container.
+- `github` copies host GitHub CLI auth into a profile-local snapshot and mounts it read-only.
+- `vercel` installs the host-matching Vercel CLI version in the container and mounts copied Vercel auth read-only.
+
+Check host readiness before granting:
+
+```bash
+lcp integration list
+lcp integration doctor <provider>
+```
+
+Grant integrations one provider at a time:
+
+```bash
+lcp integration grant <profile> git
+lcp integration grant <profile> github
+lcp integration grant <profile> vercel
+```
+
+Always preview before a real apply:
+
+```bash
+lcp integration apply <profile> --dry-run
+```
+
+Real apply may stop the bridge and recreate the container when mounts must change:
+
+```bash
+lcp integration apply <profile> --yes
+```
+
+For human-visible install/configure progress:
+
+```bash
+lcp integration apply <profile> --yes --verbose
+```
+
+When a provider supports exact version reuse:
+
+```bash
+lcp integration apply <profile> --yes --reuse-matching
+```
+
+Verify after apply:
+
+```bash
+lcp integration verify <profile>
+lcp integration status <profile>
+lcp profile status <profile>
+```
+
+If apply recreated a container, confirm the bridge is running. If it is stopped, restart through LCP:
+
+```bash
+lcp bridge <profile> start
+```
+
+Revoke access without uninstalling provider tools from the image:
+
+```bash
+lcp integration revoke <profile> <provider>
+lcp integration apply <profile> --dry-run
+lcp integration apply <profile> --yes
+```
+
+Important safety rules:
+
+- Do not copy snapshot contents into chat or logs.
+- Do not manually edit `profile.json` to grant or revoke providers.
+- Do not manually mount host credential directories into Docker containers.
+- Use `grant` again after the host reauthenticates or rotates credentials; this refreshes the profile-local snapshot.
+- If `apply` fails, read `lcp integration status <profile>` before retrying.
 
 ## Initialize host LCP configuration
 

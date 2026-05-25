@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from .integrations.models import ProfileIntegrations
+
 UBUNTU_LTS_IMAGE = "ubuntu:24.04"
 LCP_PROFILE_WORKSPACES_DIR = "lcp_profiles"
 
@@ -98,6 +100,7 @@ class VerificationConfig(BaseModel):
 
 
 class Profile(BaseModel):
+    schemaVersion: int = 1
     name: str
     description: str = ""
     container: ContainerConfig
@@ -106,6 +109,7 @@ class Profile(BaseModel):
     gitIdentity: GitIdentityConfig = Field(default_factory=GitIdentityConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     verification: VerificationConfig = Field(default_factory=VerificationConfig)
+    integrations: ProfileIntegrations = Field(default_factory=ProfileIntegrations)
 
     @field_validator("name")
     @classmethod
