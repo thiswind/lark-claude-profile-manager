@@ -2,13 +2,12 @@
 
 ## Unreleased
 
+## 0.1.0 - 2026-05-25
+
 - Prepare package metadata and installation docs for pip, uv, and pipx Git-based installs.
 - Add `lcp --version` for installed package verification.
-- Add PolyForm Noncommercial 1.0.0 licensing, commercial-use guidance, and contributor relicensing terms.
+- Add PolyForm Noncommercial 1.0.0 licensing, commercial-use guidance, contributor relicensing terms, and explicit README restrictions against unauthorized commercial development or future-commercialization claims.
 - Make the agent operations runbook portable by removing host-specific repository paths, Git identity, and branch/remote assumptions.
-
-## 0.1.0 - 2026-05-24
-
 - Fix generated profile Dockerfiles so sudoers newline escaping remains valid Dockerfile syntax.
 - Add a host-level Claude Code agent operations runbook and link it from README.
 - Bind profile-local `lark-cli` automatically before managed bridge start/restart, fail fast when the bot is not configured, and add `lcp bridge <profile> bind-lark-cli` for manual retry.

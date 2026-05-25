@@ -294,6 +294,10 @@ LCP 是 source-available 软件，不是 permissive open source。
 
 本项目使用 PolyForm Noncommercial License 1.0.0。非商业用途按 `LICENSE` 授权；商业用途需要项目所有者另行书面许可。
 
+禁止在未获得书面许可的情况下将 LCP 用于商业开发、企业内部生产、商业服务交付、客户项目、付费咨询、托管服务、商业产品集成或其它以商业利益为目的的场景。
+
+项目所有者保留一切未明确授予的权利，包括但不限于未来将 LCP 或其衍生版本商业化、提供企业版本、调整授权策略、签发单独商业许可或停止提供某些授权渠道的权利。
+
 更多说明：
 
 - `LICENSE`：完整 PolyForm Noncommercial License 1.0.0 文本。
