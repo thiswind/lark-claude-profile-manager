@@ -1,11 +1,38 @@
 from .host_user import HostUser
 from .models import UBUNTU_LTS_IMAGE
+from .runtime import RuntimeManifest
 
 NODE_MAJOR = 24
-BASE_PACKAGES = "ca-certificates curl git gh bash coreutils python3 python3-pip gnupg sudo"
+BASE_PACKAGES = " ".join(sorted([
+    "bash",
+    "bash-completion",
+    "ca-certificates",
+    "coreutils",
+    "curl",
+    "git",
+    "gnupg",
+    "htop",
+    "iputils-ping",
+    "jq",
+    "less",
+    "lsof",
+    "net-tools",
+    "openssh-client",
+    "python3",
+    "python3-pip",
+    "python3-venv",
+    "ripgrep",
+    "strace",
+    "sudo",
+    "tree",
+    "unzip",
+    "vim-tiny",
+    "wget",
+    "zip",
+]))
 
 
-def render_profile_dockerfile(user: HostUser) -> str:
+def render_base_dockerfile() -> str:
     return f"""FROM {UBUNTU_LTS_IMAGE}
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -17,6 +44,40 @@ RUN sed -i 's/ noble-backports//g; s/noble-backports//g' /etc/apt/sources.list /
     && apt-get -o Acquire::Retries=3 install -y nodejs \
     && npm config set cache /cache/npm --global \
     && rm -rf /var/lib/apt/lists/*
+
+CMD ["sleep", "infinity"]
+"""
+
+
+def render_runtime_dockerfile(manifest: RuntimeManifest) -> str:
+    installs = []
+    for tool in manifest.tools.values():
+        package = tool.package if tool.version == "latest" else f"{tool.package}@{tool.version}"
+        installs.append(package)
+    install_command = "npm install -g " + " ".join(installs) + " --include=optional --cache /cache/npm" if installs else "true"
+    return f"""FROM {manifest.baseImage}
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN mkdir -p /cache/npm /cache/pnpm /cache/pip /cache/tmp /logs \
+    && {install_command}
+
+RUN if command -v claude >/dev/null 2>&1; then \
+        cd $(npm root -g)/@anthropic-ai/claude-code \
+        && pkg=$(case $(node -p 'process.arch') in x64) echo @anthropic-ai/claude-code-linux-x64 ;; arm64) echo @anthropic-ai/claude-code-linux-arm64 ;; esac) \
+        && if [ -n "$pkg" ]; then npm install "$pkg" --cache /cache/npm; fi \
+        && node install.cjs; \
+    fi
+
+CMD ["sleep", "infinity"]
+"""
+
+
+def render_profile_dockerfile(user: HostUser, runtime_image: str | None = None) -> str:
+    base_image = runtime_image or "lcp/runtime:latest"
+    return f"""FROM {base_image}
+
+ARG DEBIAN_FRONTEND=noninteractive
 
 RUN if getent passwd {user.uid} >/dev/null; then \
         old_user=$(getent passwd {user.uid} | cut -d: -f1); \

@@ -49,8 +49,8 @@ class FakeImages:
     def pull(self, image):
         self.pulled = image
 
-    def build(self, path, tag, rm):
-        self.built = {"path": path, "tag": tag, "rm": rm}
+    def build(self, path, tag, rm, dockerfile=None):
+        self.built = {"path": path, "tag": tag, "rm": rm, "dockerfile": dockerfile}
 
     def load(self, data):
         self.loaded = data

@@ -10,6 +10,7 @@ def test_store_initializes_directories(tmp_path: Path) -> None:
     assert store.profiles_dir.is_dir()
     assert (store.cache_dir / "npm").is_dir()
     assert store.snapshots_dir.is_dir()
+    assert store.runtime_dir.is_dir()
 
 
 def test_store_saves_and_loads_profile(tmp_path: Path) -> None:
@@ -27,3 +28,11 @@ def test_store_lists_profiles(tmp_path: Path) -> None:
     store.save_profile(default_profile("b", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000))
     store.save_profile(default_profile("a", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000))
     assert store.list_profiles() == ["a", "b"]
+
+
+def test_store_loads_default_runtime_manifest(tmp_path: Path) -> None:
+    store = LcpStore(tmp_path / ".lcp")
+    manifest = store.load_runtime_manifest()
+    assert manifest.baseImage == "lcp/base:latest"
+    assert manifest.runtimeImage == "lcp/runtime:latest"
+    assert "claude-code" in manifest.tools

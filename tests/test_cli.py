@@ -113,7 +113,7 @@ def test_profile_help_shows_lifecycle_commands() -> None:
     result = runner.invoke(cli.app, ["profile", "--help"])
 
     assert result.exit_code == 0
-    for command in ["create", "list", "status", "shell", "verify", "snapshot", "restore", "rm"]:
+    for command in ["create", "list", "status", "shell", "verify", "rebuild", "snapshot", "restore", "rm"]:
         assert command in result.output
 
 

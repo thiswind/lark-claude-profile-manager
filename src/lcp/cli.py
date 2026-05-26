@@ -15,6 +15,7 @@ from .installer import install_runtime
 from .integrations.service import IntegrationService
 from .lark_cli import bind_lark_cli
 from .models import Profile, container_name, default_profile
+from .rebuild import plan_profile_rebuild
 from .selfcheck import collect_init_report
 from .store import LcpStore
 from .ui import console, print_banner, print_checks
@@ -24,8 +25,12 @@ app = typer.Typer(help="Manage Lark Claude profile containers", context_settings
 profile_app = typer.Typer(help="Manage profiles", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 rm_app = typer.Typer(help="Debug removal commands", context_settings={"help_option_names": ["-h", "--help"]})
 integration_app = typer.Typer(help="Manage profile host integrations", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
+image_app = typer.Typer(help="Manage LCP shared images", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
+runtime_app = typer.Typer(help="Manage LCP runtime tools", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 app.add_typer(profile_app, name="profile")
 app.add_typer(integration_app, name="integration")
+app.add_typer(image_app, name="image")
+app.add_typer(runtime_app, name="runtime")
 app.add_typer(rm_app, name="rm", hidden=True)
 
 
@@ -223,6 +228,33 @@ def _verify_profile_command(name: str, run_claude: bool) -> None:
         raise typer.Exit(1)
 
 
+def _rebuild_profile(name: str, dry_run: bool, yes: bool) -> None:
+    store = LcpStore()
+    profile = _load_profile_or_exit(store, name)
+    adapter = DockerAdapter(store)
+    plan = plan_profile_rebuild(store, adapter, profile)
+    typer.echo(f"profile: {plan.profile}")
+    typer.echo(f"container: {plan.container} ({plan.currentStatus})")
+    typer.echo(f"bridge: {'running' if plan.bridgeRunning else 'stopped'}")
+    typer.echo(f"current image: {plan.currentImage}")
+    typer.echo(f"runtime image: {plan.runtimeImage}")
+    typer.echo(f"Claude Code continuity: {'safe' if plan.claudeContinuity.safe else 'unsafe'}")
+    for reason in plan.claudeContinuity.reasons:
+        typer.echo(f"  reason: {reason}")
+    typer.echo("preserved mounts:")
+    for mount in plan.preservedMounts:
+        typer.echo(f"  {mount}")
+    typer.echo("verification:")
+    for command in plan.verification:
+        typer.echo(f"  {command}")
+    if dry_run:
+        typer.echo("dry-run: would rebuild the profile image and safely replace the container with rollback")
+        return
+    if not yes:
+        _fail("real profile rebuild is not implemented yet", "run with --dry-run for the current planning preview")
+    _fail("real profile rebuild is not implemented yet", "this phase only adds the safe dry-run plan")
+
+
 def _snapshot_profile(name: str, output: str | None) -> None:
     store = LcpStore()
     profile = _load_profile_or_exit(store, name)
@@ -351,6 +383,63 @@ def _remove_profile_runtime(name: str, yes: bool) -> None:
         typer.echo(f"container already absent: {profile.container.name}")
     removed_profile = store.remove_profile(name)
     typer.echo(f"removed profile state: {removed_profile}")
+
+
+def _image_status() -> None:
+    store = LcpStore()
+    manifest = store.load_runtime_manifest()
+    typer.echo(f"base image: {manifest.baseImage}")
+    typer.echo(f"runtime image: {manifest.runtimeImage}")
+    typer.echo(f"runtime manifest: {store.runtime_manifest_file}")
+
+
+def _build_base_image(dry_run: bool, yes: bool) -> None:
+    store = LcpStore()
+    store.init_dirs()
+    manifest = store.load_runtime_manifest()
+    typer.echo(f"base image: {manifest.baseImage}")
+    typer.echo(f"dockerfile: {store.runtime_dir / 'Dockerfile.base'}")
+    if dry_run:
+        typer.echo("dry-run: would render Dockerfile.base and build the base image")
+        return
+    if not yes and not typer.confirm(f"Build base image {manifest.baseImage}?"):
+        raise typer.Exit(1)
+    DockerAdapter(store).build_base_image()
+    typer.echo(f"built: {manifest.baseImage}")
+
+
+def _runtime_list() -> None:
+    store = LcpStore()
+    manifest = store.load_runtime_manifest()
+    typer.echo(f"base image: {manifest.baseImage}")
+    typer.echo(f"runtime image: {manifest.runtimeImage}")
+    for name, tool in sorted(manifest.tools.items()):
+        typer.echo(f"{name}: {tool.package}@{tool.version}")
+
+
+def _runtime_apply(dry_run: bool, yes: bool) -> None:
+    store = LcpStore()
+    store.init_dirs()
+    manifest = store.load_runtime_manifest()
+    profiles = store.list_profiles()
+    typer.echo(f"runtime image: {manifest.runtimeImage}")
+    typer.echo(f"dockerfile: {store.runtime_dir / 'Dockerfile.runtime'}")
+    typer.echo("tools:")
+    for name, tool in sorted(manifest.tools.items()):
+        typer.echo(f"  {name}: {tool.package}@{tool.version}")
+    typer.echo("affected profiles:")
+    if profiles:
+        for profile_name in profiles:
+            typer.echo(f"  {profile_name}: requires explicit `lcp profile rebuild {profile_name} --dry-run` before container changes")
+    else:
+        typer.echo("  none")
+    if dry_run:
+        typer.echo("dry-run: would render Dockerfile.runtime and build the runtime image; no containers would be recreated")
+        return
+    if not yes and not typer.confirm(f"Build runtime image {manifest.runtimeImage}?"):
+        raise typer.Exit(1)
+    DockerAdapter(store).build_runtime_image()
+    typer.echo(f"built: {manifest.runtimeImage}")
 
 
 def _list_integrations() -> None:
@@ -572,6 +661,15 @@ def profile_verify(name: str, run_claude: bool = typer.Option(True, help="Run Cl
     _verify_profile_command(name, run_claude)
 
 
+@profile_app.command("rebuild")
+def profile_rebuild(
+    name: str,
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview safe profile rebuild without changing the container"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm real rebuild"),
+) -> None:
+    _rebuild_profile(name, dry_run, yes)
+
+
 @profile_app.command("snapshot")
 def profile_snapshot(name: str, output: str | None = typer.Option(None, help="Output backup directory")) -> None:
     _snapshot_profile(name, output)
@@ -585,6 +683,37 @@ def profile_restore(name: str, image_tar: str = typer.Option(..., help="Snapshot
 @profile_app.command("rm")
 def profile_rm(name: str, yes: bool = typer.Option(False, "--yes", "-y", help="Confirm removal")) -> None:
     _remove_profile_runtime(name, yes)
+
+
+@image_app.command("status")
+def image_status() -> None:
+    _image_status()
+
+
+@image_app.command("build-base")
+def image_build_base(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview base image build without running Docker build"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm real build"),
+) -> None:
+    _build_base_image(dry_run, yes)
+
+
+@runtime_app.command("list")
+def runtime_list() -> None:
+    _runtime_list()
+
+
+@runtime_app.command("status")
+def runtime_status() -> None:
+    _runtime_list()
+
+
+@runtime_app.command("apply")
+def runtime_apply(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview runtime image build without changing containers"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm real build"),
+) -> None:
+    _runtime_apply(dry_run, yes)
 
 
 @integration_app.command("list")

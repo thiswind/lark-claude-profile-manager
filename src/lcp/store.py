@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from .config import MachineConfig
 from .models import Profile
 from .paths import default_lcp_home, ensure_dir
+from .runtime import RuntimeManifest, load_runtime_manifest, save_runtime_manifest
 
 
 class LcpStore:
@@ -28,10 +29,19 @@ class LcpStore:
     def config_file(self) -> Path:
         return self.root / "config.json"
 
+    @property
+    def runtime_dir(self) -> Path:
+        return self.root / "runtime"
+
+    @property
+    def runtime_manifest_file(self) -> Path:
+        return self.runtime_dir / "manifest.json"
+
     def init_dirs(self) -> None:
         ensure_dir(self.root)
         ensure_dir(self.profiles_dir)
         ensure_dir(self.snapshots_dir)
+        ensure_dir(self.runtime_dir)
         for name in ["apt", "npm", "pip", "pnpm", "tmp"]:
             ensure_dir(self.cache_dir / name)
 
@@ -51,6 +61,12 @@ class LcpStore:
 
     def load_config(self) -> MachineConfig:
         return MachineConfig.load(self.config_file)
+
+    def load_runtime_manifest(self) -> RuntimeManifest:
+        return load_runtime_manifest(self.runtime_manifest_file)
+
+    def save_runtime_manifest(self, manifest: RuntimeManifest) -> None:
+        save_runtime_manifest(self.runtime_manifest_file, manifest)
 
     def save_profile(self, profile: Profile) -> None:
         profile_dir = self.ensure_profile_dirs(profile.name)

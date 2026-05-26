@@ -7,7 +7,7 @@ import docker
 from docker.errors import NotFound
 from docker.models.containers import Container
 
-from .dockerfile import render_profile_dockerfile
+from .dockerfile import render_base_dockerfile, render_profile_dockerfile, render_runtime_dockerfile
 from .integrations.service import IntegrationService
 from .models import Profile, UBUNTU_LTS_IMAGE
 from .store import LcpStore
@@ -34,14 +34,48 @@ class DockerAdapter:
         except NotFound:
             self.client.images.pull(UBUNTU_LTS_IMAGE)
 
-    def write_profile_dockerfile(self, profile: Profile) -> Path:
-        profile_dir = self.store.ensure_profile_dirs(profile.name)
-        dockerfile = profile_dir / "Dockerfile"
-        dockerfile.write_text(render_profile_dockerfile(profile.container.user), encoding="utf-8")
+    def write_base_dockerfile(self) -> Path:
+        self.store.init_dirs()
+        dockerfile = self.store.runtime_dir / "Dockerfile.base"
+        dockerfile.write_text(render_base_dockerfile(), encoding="utf-8")
         return dockerfile
 
-    def build_profile_image(self, profile: Profile) -> None:
+    def write_runtime_dockerfile(self) -> Path:
+        self.store.init_dirs()
+        manifest = self.store.load_runtime_manifest()
+        dockerfile = self.store.runtime_dir / "Dockerfile.runtime"
+        dockerfile.write_text(render_runtime_dockerfile(manifest), encoding="utf-8")
+        return dockerfile
+
+    def write_profile_dockerfile(self, profile: Profile) -> Path:
+        profile_dir = self.store.ensure_profile_dirs(profile.name)
+        runtime_image = self.store.load_runtime_manifest().runtimeImage
+        dockerfile = profile_dir / "Dockerfile"
+        dockerfile.write_text(render_profile_dockerfile(profile.container.user, runtime_image), encoding="utf-8")
+        return dockerfile
+
+    def build_base_image(self) -> None:
         self.pull_base_image()
+        self.write_base_dockerfile()
+        manifest = self.store.load_runtime_manifest()
+        self.client.images.build(path=str(self.store.runtime_dir), dockerfile="Dockerfile.base", tag=manifest.baseImage, rm=True)
+
+    def build_runtime_image(self) -> None:
+        self.write_runtime_dockerfile()
+        manifest = self.store.load_runtime_manifest()
+        self.client.images.build(path=str(self.store.runtime_dir), dockerfile="Dockerfile.runtime", tag=manifest.runtimeImage, rm=True)
+
+    def ensure_runtime_image(self) -> None:
+        manifest = self.store.load_runtime_manifest()
+        try:
+            self.client.images.get(manifest.runtimeImage)
+            return
+        except NotFound:
+            self.build_base_image()
+            self.build_runtime_image()
+
+    def build_profile_image(self, profile: Profile) -> None:
+        self.ensure_runtime_image()
         self.write_profile_dockerfile(profile)
         self.client.images.build(
             path=str(self.store.profile_dir(profile.name)),
