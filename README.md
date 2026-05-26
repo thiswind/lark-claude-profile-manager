@@ -215,7 +215,7 @@ lcp bridge <name> secrets list
 LCP 可以把宿主机上的部分工具认证安全地授予某个 profile。当前内置 provider：
 
 - `git`：把宿主机 Git identity 配置到容器内。
-- `github`：把宿主机 GitHub CLI 认证复制为 profile-local snapshot，并以只读方式挂载到容器内。
+- `github`：把宿主机 GitHub CLI 认证复制为 profile-local snapshot，以只读方式挂载到容器内，并在 apply 时把容器内 `gh` 安装/升级到宿主机版本。
 - `vercel`：在容器内安装与宿主机匹配的 Vercel CLI 版本，并以只读 snapshot 共享 Vercel 认证。
 
 查看可用 provider 和宿主机就绪状态：
@@ -247,6 +247,7 @@ lcp integration apply <profile> --yes
 
 - 授权会复制宿主机认证到 `~/.lcp/profiles/<profile>/integrations/<provider>/snapshot/`，不会把宿主机原始认证目录直接暴露为可写挂载。
 - 认证 snapshot 在容器内是只读挂载，避免容器误改宿主机认证导致其它 profile 出故障。
+- `github` 和 `vercel` 会优先按授权时记录的宿主机 CLI 版本安装容器工具；宿主机升级或重新登录后，重新 `grant` 并 `apply` 可刷新 snapshot 和容器版本。
 - `apply` 可能会重建容器以应用挂载变化；重建后会自动恢复基础 runtime 工具，再执行 provider 安装、配置和验证。
 - `--verbose` 会显示安装和配置步骤；`--reuse-matching` 会在 provider 支持时复用容器内已匹配的 CLI 版本。
 

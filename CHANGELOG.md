@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-- Clarify that the default install path is `pip` from the GitHub source/tag, with `uv` and `pipx` as secondary options.
-
 ## 0.1.2 - 2026-05-25
 
+- Clarify that the default install path is `pip` from the GitHub source/tag, with `uv` and `pipx` as secondary options.
 - Add profile-level host integrations for `git`, `github`, and `vercel` with `list`, `doctor`, `grant`, `revoke`, `status`, `apply`, and `verify` commands.
 - Store integration auth as profile-local snapshots and mount them read-only into profile containers instead of directly mounting mutable host credentials.
 - Add real integration apply orchestration with dry-run previews, confirmation gating, container recreation for mount changes, runtime reinstall after recreate, provider install/configure commands, and container verification.
+- Install or upgrade container GitHub CLI to the authorized host `gh` version during GitHub integration apply.
 - Preserve legacy GitHub CLI config mounting for profiles that have not moved to the new GitHub integration state.
 - Harden runtime installation so read-only credential mounts are not recursively chowned while required profile-local directories remain writable.
 - Validate the new integration flow on a real `solid` profile with Git identity, GitHub CLI authentication, Vercel authentication, and bridge recovery.

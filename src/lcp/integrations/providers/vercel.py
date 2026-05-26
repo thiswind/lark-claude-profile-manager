@@ -68,7 +68,10 @@ class VercelProvider(IntegrationProvider):
         ]
 
     def verify_commands(self, profile: Profile) -> list[str]:
-        return ["vercel whoami"]
+        home = shlex.quote(profile.container.user.home)
+        return [
+            f"tmp=$(mktemp -d) && mkdir -p \"$tmp/.local/share\" && cp -a {home}/.local/share/com.vercel.cli \"$tmp/.local/share/\" && chmod -R u+w \"$tmp/.local/share/com.vercel.cli\" && HOME=\"$tmp\" vercel whoami; code=$?; rm -rf \"$tmp\"; exit $code"
+        ]
 
     def _auth_path(self) -> Path | None:
         for path in [Path.home() / ".local" / "share" / "com.vercel.cli", Path.home() / ".config" / "com.vercel.cli"]:

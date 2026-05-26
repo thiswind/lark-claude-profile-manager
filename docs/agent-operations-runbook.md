@@ -132,7 +132,7 @@ Host integrations grant one profile access to selected host tool credentials wit
 Built-in providers:
 
 - `git` configures the host Git identity inside the profile container.
-- `github` copies host GitHub CLI auth into a profile-local snapshot and mounts it read-only.
+- `github` copies host GitHub CLI auth into a profile-local snapshot, mounts it read-only, and installs or upgrades container `gh` to the host `gh` version during apply.
 - `vercel` installs the host-matching Vercel CLI version in the container and mounts copied Vercel auth read-only.
 
 Check host readiness before granting:
@@ -201,7 +201,7 @@ Important safety rules:
 - Do not copy snapshot contents into chat or logs.
 - Do not manually edit `profile.json` to grant or revoke providers.
 - Do not manually mount host credential directories into Docker containers.
-- Use `grant` again after the host reauthenticates or rotates credentials; this refreshes the profile-local snapshot.
+- Use `grant` again after the host reauthenticates, rotates credentials, or upgrades a host CLI whose version should be mirrored in the container; this refreshes the profile-local snapshot and desired host version.
 - If `apply` fails, read `lcp integration status <profile>` before retrying.
 
 ## Initialize host LCP configuration
