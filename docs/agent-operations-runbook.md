@@ -133,6 +133,7 @@ Built-in providers:
 
 - `git` configures the host Git identity inside the profile container.
 - `github` copies host GitHub CLI auth into a profile-local snapshot, mounts it read-only, and installs or upgrades container `gh` to the host `gh` version during apply.
+- `proxy` writes explicitly granted HTTP, HTTPS, and SOCKS proxy settings into the profile container and creates a profile-local Claude Code proxy skill. It must not rely on hardcoded host proxy endpoints.
 - `vercel` installs the host-matching Vercel CLI version in the container and mounts copied Vercel auth read-only.
 
 Check host readiness before granting:
@@ -148,6 +149,7 @@ Grant integrations one provider at a time:
 lcp integration grant <profile> git
 lcp integration grant <profile> github
 lcp integration grant <profile> vercel
+LCP_PROXY_HTTP='http://proxy.example:8080' LCP_PROXY_SOCKS5='socks5h://proxy.example:1080' lcp integration grant <profile> proxy
 ```
 
 Always preview before a real apply:
@@ -201,8 +203,45 @@ Important safety rules:
 - Do not copy snapshot contents into chat or logs.
 - Do not manually edit `profile.json` to grant or revoke providers.
 - Do not manually mount host credential directories into Docker containers.
-- Use `grant` again after the host reauthenticates, rotates credentials, or upgrades a host CLI whose version should be mirrored in the container; this refreshes the profile-local snapshot and desired host version.
+- Do not write host-local proxy addresses into source, docs, defaults, or tests. Proxy endpoints belong in explicit grant-time environment variables.
+- Use `grant` again after the host reauthenticates, rotates credentials, upgrades a host CLI whose version should be mirrored in the container, or changes proxy endpoint configuration.
 - If `apply` fails, read `lcp integration status <profile>` before retrying.
+
+## Rebuild profile containers safely
+
+Use this when a profile image or LCP runtime image changed:
+
+```bash
+lcp profile rebuild <profile> --dry-run
+```
+
+Check the dry-run output:
+
+1. Confirm the target profile and container names.
+2. Confirm Claude Code continuity is safe.
+3. Confirm `~/.claude` and `~/.claude.json` are listed in preserved mounts.
+4. Confirm whether the bridge is currently running.
+
+Only then run:
+
+```bash
+lcp profile rebuild <profile> --yes
+```
+
+Expected behavior:
+
+1. The old container is stopped and renamed to a rollback container.
+2. A new profile image is built from the current runtime image.
+3. A new container is created with the original container name and preserved mounts.
+4. LCP verifies Claude Code continuity and runtime tools.
+5. If the bridge was running before rebuild, LCP attempts to restart it.
+6. The rollback container is kept for manual recovery until the operator decides it is safe to remove.
+
+If rebuild fails:
+
+1. Read the recovery lines printed by LCP.
+2. Check whether the rollback container was restored.
+3. Do not delete rollback containers until the user confirms the new container is healthy.
 
 ## Initialize host LCP configuration
 

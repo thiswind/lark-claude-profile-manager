@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add shared base/runtime image management commands and profile rebuild dry-run planning.
+- Implement confirmed `lcp profile rebuild <profile> --yes` with rollback container preservation and Claude Code continuity checks.
+- Add grantable `proxy` integration for HTTP, HTTPS, and SOCKS proxy configuration using explicit environment-provided endpoints, without hardcoded host proxy addresses.
+- Generate a profile-local Claude Code proxy skill during proxy integration apply and remove LCP-owned proxy configuration on revoke.
+
 ## 0.1.2 - 2026-05-25
 
 - Clarify that the default install path is `pip` from the GitHub source/tag, with `uv` and `pipx` as secondary options.
