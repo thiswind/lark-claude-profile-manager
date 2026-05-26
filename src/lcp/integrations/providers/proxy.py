@@ -1,11 +1,13 @@
 import os
 import shlex
-from urllib.parse import urlparse
+import shutil
+from urllib.parse import urlparse, urlunparse
 
 from lcp.models import Profile
+from lcp.store import LcpStore
 
 from ..base import IntegrationProvider
-from ..models import HostCheck, IntegrationCapabilities
+from ..models import HostCheck, IntegrationCapabilities, IntegrationMount
 
 
 class ProxyProvider(IntegrationProvider):
@@ -17,7 +19,7 @@ class ProxyProvider(IntegrationProvider):
             requiresHostTool=False,
             requiresHostAuth=False,
             supportsSnapshot=False,
-            requiresMount=False,
+            requiresMount=True,
             requiresContainerInstall=False,
             canVerifyContainer=True,
         )
@@ -30,10 +32,45 @@ class ProxyProvider(IntegrationProvider):
                 ok=False,
                 message="proxy config not found; set LCP_PROXY_HTTP, LCP_PROXY_HTTPS, or LCP_PROXY_SOCKS5 before granting",
             )
-        invalid = [f"{key}={value}" for key, value in details.items() if key != "noProxy" and not self._valid_proxy_url(value)]
+        return self.check_config(details)
+
+    def check_config(self, config: dict[str, str]) -> HostCheck:
+        allowed = {"http", "https", "socks5", "noProxy"}
+        unknown = sorted(set(config) - allowed)
+        if unknown:
+            return HostCheck(provider=self.name, ok=False, message="unknown proxy config keys: " + ", ".join(unknown), details=config)
+        invalid = [f"{key}={self._redact_url(value)}" for key, value in config.items() if key != "noProxy" and not self._valid_proxy_url(value)]
         if invalid:
-            return HostCheck(provider=self.name, ok=False, message="invalid proxy URL: " + ", ".join(invalid), details=details)
-        return HostCheck(provider=self.name, ok=True, message="proxy config detected", details=details)
+            return HostCheck(provider=self.name, ok=False, message="invalid proxy URL: " + ", ".join(invalid), details=config)
+        if not any(config.get(key) for key in ["http", "https", "socks5"]):
+            return HostCheck(provider=self.name, ok=False, message="proxy config must include http, https, or socks5", details=config)
+        return HostCheck(provider=self.name, ok=True, message="proxy config detected", details={key: value for key, value in config.items() if value})
+
+    def prepare(self, store: LcpStore, profile: Profile) -> None:
+        state = profile.integrations.providers.get(self.name)
+        if not state or not state.desired.enabled:
+            return
+        skill_dir = self._skill_dir(store, profile)
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text(self._skill_body(profile), encoding="utf-8")
+
+    def cleanup(self, store: LcpStore, profile: Profile) -> None:
+        shutil.rmtree(self._skill_dir(store, profile), ignore_errors=True)
+
+    def mounts(self, store: LcpStore, profile: Profile) -> list[IntegrationMount]:
+        state = profile.integrations.providers.get(self.name)
+        if not state or not state.desired.enabled:
+            return []
+        skill_dir = self._skill_dir(store, profile)
+        if not skill_dir.exists():
+            return []
+        return [
+            IntegrationMount(
+                hostPath=str(skill_dir),
+                containerPath=f"{profile.container.user.home}/.claude/skills/lcp-proxy-networking",
+                mode="ro",
+            )
+        ]
 
     def configure_commands(self, profile: Profile) -> list[str]:
         state = profile.integrations.providers.get(self.name)
@@ -78,24 +115,24 @@ class ProxyProvider(IntegrationProvider):
             pip_proxy = https or http
             pip_body = f"[global]\nproxy = {pip_proxy}\n"
             commands.append(f"printf %s {shlex.quote(pip_body)} > ~/.config/pip/pip.conf")
-        skill_dir = shlex.quote(f"{profile.container.user.home}/.claude/skills/lcp-proxy-{profile.name}")
-        commands.append(f"mkdir -p {skill_dir} && printf %s {shlex.quote(self._skill_body(profile))} > {skill_dir}/SKILL.md")
         return commands
 
     def revoke_commands(self, profile: Profile) -> list[str]:
-        skill_dir = shlex.quote(f"{profile.container.user.home}/.claude/skills/lcp-proxy-{profile.name}")
         return [
             "sudo rm -f /etc/profile.d/lcp-proxy.sh /etc/apt/apt.conf.d/90lcp-proxy",
             "npm config delete proxy --global >/dev/null 2>&1 || true; npm config delete https-proxy --global >/dev/null 2>&1 || true",
-            f"rm -f ~/.config/pip/pip.conf && rm -rf {skill_dir}",
+            "rm -f ~/.config/pip/pip.conf",
         ]
 
     def verify_commands(self, profile: Profile) -> list[str]:
         return ["bash -lc 'source /etc/profile.d/lcp-proxy.sh && env | grep -E \"^(http_proxy|https_proxy|all_proxy)=\"'"]
 
+    def _skill_dir(self, store: LcpStore, profile: Profile):
+        return store.profile_dir(profile.name) / "skills" / "lcp-proxy-networking"
+
     def _skill_body(self, profile: Profile) -> str:
         return f"""---
-name: lcp-proxy-{profile.name}
+name: lcp-proxy-networking
 description: Use the LCP-managed proxy configured for this profile when network access fails.
 ---
 
@@ -117,6 +154,36 @@ If this file exists but `/etc/profile.d/lcp-proxy.sh` is missing, ask the user t
 `lcp integration apply {profile.name} --dry-run`
 then inspect the plan before real apply.
 """
+
+    def redact(self, text: str) -> str:
+        redacted = text
+        for scheme in ["http", "https", "socks5", "socks5h"]:
+            redacted = self._redact_urls_with_scheme(redacted, scheme)
+        return redacted
+
+    def _redact_urls_with_scheme(self, text: str, scheme: str) -> str:
+        marker = f"{scheme}://"
+        result = text
+        start = result.find(marker)
+        while start != -1:
+            end = start
+            while end < len(result) and not result[end].isspace() and result[end] not in {'\"', "'", ";"}:
+                end += 1
+            original = result[start:end]
+            redacted = self._redact_url(original)
+            result = result[:start] + redacted + result[end:]
+            start = result.find(marker, start + len(redacted))
+        return result
+
+    def _redact_url(self, value: str) -> str:
+        parsed = urlparse(value)
+        if not parsed.username and not parsed.password:
+            return value
+        host = parsed.hostname or ""
+        netloc = "***:***@" + host
+        if parsed.port:
+            netloc += f":{parsed.port}"
+        return urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
 
     def _proxy_config_from_env(self) -> dict[str, str]:
         config = {

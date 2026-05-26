@@ -33,7 +33,9 @@ class IntegrationService:
         for name, state in profile.integrations.providers.items():
             if not state.desired.enabled:
                 continue
-            mounts.extend(self.registry.get(name).mounts(self.store, profile))
+            provider = self.registry.get(name)
+            provider.prepare(self.store, profile)
+            mounts.extend(provider.mounts(self.store, profile))
         return mounts
 
     def install_commands(self, profile: Profile, provider_name: str, reuse_matching: bool = False) -> list[str]:
@@ -55,8 +57,10 @@ class IntegrationService:
             provider = self.registry.get(name)
             if not state.desired.enabled:
                 if state.effective.status != "disabled":
-                    reason = "integration revoked; recreate container to remove mounts" if provider.capabilities().requiresMount else "integration revoked; remove LCP-owned container configuration"
-                    steps.append(IntegrationPlanStep(provider=name, action="disable", reason=reason))
+                    if provider.capabilities().requiresMount:
+                        steps.append(IntegrationPlanStep(provider=name, action="recreate", reason="integration revoked; recreate container to remove mounts"))
+                    else:
+                        steps.append(IntegrationPlanStep(provider=name, action="disable", reason="integration revoked; remove LCP-owned container configuration"))
                 continue
             capabilities = provider.capabilities()
             if capabilities.requiresContainerInstall:
@@ -69,9 +73,9 @@ class IntegrationService:
                 steps.append(IntegrationPlanStep(provider=name, action="verify", reason="provider supports container verification"))
         return IntegrationPlan(profile=profile.name, steps=steps)
 
-    def grant(self, profile: Profile, provider_name: str) -> Profile:
+    def grant(self, profile: Profile, provider_name: str, config: dict[str, str] | None = None) -> Profile:
         provider = self.registry.get(provider_name)
-        check = provider.check_host()
+        check = provider.check_config(config) if config is not None else provider.check_host()
         if not check.ok:
             raise RuntimeError(check.message or f"{provider_name} is not ready on host")
         now = datetime.now(UTC).isoformat()
@@ -90,6 +94,7 @@ class IntegrationService:
             state.desired.snapshotPath = str(snapshot_dir)
             state.desired.snapshotId = metadata.snapshotId
         profile.integrations.providers[provider_name] = state
+        provider.prepare(self.store, profile)
         return profile
 
     def revoke(self, profile: Profile, provider_name: str) -> Profile:
@@ -104,6 +109,7 @@ class IntegrationService:
             move_snapshot_to_trash(integration_dir / "snapshot", integration_dir / "trash", snapshot_id)
         state.desired.snapshotPath = None
         state.desired.snapshotId = None
+        self.registry.get(provider_name).cleanup(self.store, profile)
         if self.registry.get(provider_name).capabilities().requiresMount:
             state.effective.status = "pending_recreate"
             state.effective.reason = "revoked; run `lcp integration apply` to remove mounts"
@@ -135,9 +141,10 @@ class IntegrationService:
         for name in disabled_names:
             state = profile.integrations.providers[name]
             try:
+                provider = self.registry.get(name)
                 for command in self.revoke_commands(profile, name):
                     if progress:
-                        progress(f"revoke {name}: {command}")
+                        progress(f"revoke {name}: {provider.redact(command)}")
                     result = adapter.exec(profile, command)
                     if result.exit_code != 0:
                         raise RuntimeError(result.output.strip() or f"revoke failed: {name}")
@@ -152,16 +159,17 @@ class IntegrationService:
         active_names = sorted(name for name, state in profile.integrations.providers.items() if state.desired.enabled)
         for name in active_names:
             state = profile.integrations.providers[name]
+            provider = self.registry.get(name)
             try:
                 for command in self.install_commands(profile, name, reuse_matching=reuse_matching):
                     if progress:
-                        progress(f"install {name}: {command}")
+                        progress(f"install {name}: {provider.redact(command)}")
                     result = adapter.exec(profile, command)
                     if result.exit_code != 0:
                         raise RuntimeError(result.output.strip() or f"install failed: {name}")
                 for command in self.configure_commands(profile, name):
                     if progress:
-                        progress(f"configure {name}: {command}")
+                        progress(f"configure {name}: {provider.redact(command)}")
                     result = adapter.exec(profile, command)
                     if result.exit_code != 0:
                         raise RuntimeError(result.output.strip() or f"configure failed: {name}")

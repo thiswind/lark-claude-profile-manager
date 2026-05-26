@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 from .bridge import bridge_status, start_bridge, stop_bridge
 from .docker_adapter import DockerAdapter
+from .integrations.models import IntegrationVerifyResult
+from .integrations.service import IntegrationService
 from .models import Profile
 from .store import LcpStore
 
@@ -25,6 +27,7 @@ class ProfileRebuildPlan(BaseModel):
     runtimeImage: str
     claudeContinuity: ClaudeContinuityCheck
     preservedMounts: list[str] = Field(default_factory=list)
+    activeIntegrations: list[str] = Field(default_factory=list)
     verification: list[str] = Field(default_factory=list)
 
 
@@ -32,6 +35,16 @@ class ProfileRebuildResult(BaseModel):
     rollbackContainer: str
     bridgeRestored: bool
     verification: list[str] = Field(default_factory=list)
+    integrations: list[IntegrationVerifyResult] = Field(default_factory=list)
+
+
+class RollbackContainer(BaseModel):
+    name: str
+    status: str
+
+
+class RollbackCleanupResult(BaseModel):
+    removed: list[str] = Field(default_factory=list)
 
 
 class RebuildError(RuntimeError):
@@ -88,6 +101,7 @@ def plan_profile_rebuild(store: LcpStore, adapter: DockerAdapter, profile: Profi
         runtimeImage=store.load_runtime_manifest().runtimeImage,
         claudeContinuity=check_claude_continuity(profile),
         preservedMounts=preserved,
+        activeIntegrations=sorted(name for name, state in profile.integrations.providers.items() if state.desired.enabled),
         verification=[
             "test -d ~/.claude/projects",
             "claude --version",
@@ -100,6 +114,26 @@ def plan_profile_rebuild(store: LcpStore, adapter: DockerAdapter, profile: Profi
 def _rollback_name(profile: Profile) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     return f"{profile.container.name}-rollback-{stamp}"
+
+
+def list_rollback_containers(adapter: DockerAdapter, profile: Profile) -> list[RollbackContainer]:
+    prefix = f"{profile.container.name}-rollback-"
+    rollbacks = []
+    for container in adapter.list_profile_containers(profile):
+        if container.name.startswith(prefix):
+            rollbacks.append(RollbackContainer(name=container.name, status=container.status))
+    return sorted(rollbacks, key=lambda item: item.name)
+
+
+def cleanup_rollback_containers(adapter: DockerAdapter, profile: Profile) -> RollbackCleanupResult:
+    result = RollbackCleanupResult()
+    prefix = f"{profile.container.name}-rollback-"
+    for container in adapter.list_profile_containers(profile):
+        if container.name.startswith(prefix):
+            container.remove(force=True)
+            result.removed.append(container.name)
+    result.removed.sort()
+    return result
 
 
 def _verification_commands() -> list[str]:
@@ -164,6 +198,12 @@ def rebuild_profile(store: LcpStore, adapter: DockerAdapter, profile: Profile) -
             adapter.create_profile_container(profile, build_image=False)
             adapter.start(profile)
             verification = _run_verification(adapter, profile)
+            updated_profile, integration_results = IntegrationService(store).apply(adapter, profile, reuse_matching=True)
+            failures = [result for result in integration_results if not result.ok]
+            if failures:
+                details = [result.output for result in failures if result.output]
+                raise RebuildError("integration reapply failed", details)
+            store.save_profile(updated_profile)
             bridge_restored = False
             if bridge_was_running:
                 status = start_bridge(adapter, profile)
@@ -174,6 +214,7 @@ def rebuild_profile(store: LcpStore, adapter: DockerAdapter, profile: Profile) -
                 rollbackContainer=rollback_name,
                 bridgeRestored=bridge_restored,
                 verification=verification,
+                integrations=integration_results,
             )
         except Exception as exc:
             recovery = _restore_rollback(adapter, profile, rollback_name, bridge_was_running)

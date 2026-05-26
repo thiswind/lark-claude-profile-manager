@@ -133,7 +133,7 @@ Built-in providers:
 
 - `git` configures the host Git identity inside the profile container.
 - `github` copies host GitHub CLI auth into a profile-local snapshot, mounts it read-only, and installs or upgrades container `gh` to the host `gh` version during apply.
-- `proxy` writes explicitly granted HTTP, HTTPS, and SOCKS proxy settings into the profile container and creates a profile-local Claude Code proxy skill. It must not rely on hardcoded host proxy endpoints.
+- `proxy` writes explicitly granted HTTP, HTTPS, and SOCKS proxy settings into the profile container and mounts a profile-local Claude Code proxy skill read-only. It must not rely on hardcoded host proxy endpoints.
 - `vercel` installs the host-matching Vercel CLI version in the container and mounts copied Vercel auth read-only.
 
 Check host readiness before granting:
@@ -149,7 +149,7 @@ Grant integrations one provider at a time:
 lcp integration grant <profile> git
 lcp integration grant <profile> github
 lcp integration grant <profile> vercel
-LCP_PROXY_HTTP='http://proxy.example:8080' LCP_PROXY_SOCKS5='socks5h://proxy.example:1080' lcp integration grant <profile> proxy
+LCP_PROXY_HTTP='http://proxy.example:8080' LCP_PROXY_SOCKS5='socks5h://proxy.example:1080' lcp integration grant <profile> proxy --from-env
 ```
 
 Always preview before a real apply:
@@ -203,7 +203,8 @@ Important safety rules:
 - Do not copy snapshot contents into chat or logs.
 - Do not manually edit `profile.json` to grant or revoke providers.
 - Do not manually mount host credential directories into Docker containers.
-- Do not write host-local proxy addresses into source, docs, defaults, or tests. Proxy endpoints belong in explicit grant-time environment variables.
+- Do not write host-local proxy addresses into source, docs, defaults, or tests. Proxy endpoints belong in explicit grant-time environment variables or `--config` values.
+- Treat proxy URLs as sensitive when they contain credentials; LCP redacts provider output, but operators should still avoid pasting raw proxy URLs into chat or logs.
 - Use `grant` again after the host reauthenticates, rotates credentials, upgrades a host CLI whose version should be mirrored in the container, or changes proxy endpoint configuration.
 - If `apply` fails, read `lcp integration status <profile>` before retrying.
 
@@ -215,6 +216,12 @@ Use this when a profile image or LCP runtime image changed:
 lcp profile rebuild <profile> --dry-run
 ```
 
+For all profiles, still inspect the complete dry-run first:
+
+```bash
+lcp profile rebuild --all --dry-run
+```
+
 Check the dry-run output:
 
 1. Confirm the target profile and container names.
@@ -222,10 +229,16 @@ Check the dry-run output:
 3. Confirm `~/.claude` and `~/.claude.json` are listed in preserved mounts.
 4. Confirm whether the bridge is currently running.
 
-Only then run:
+Only then run one profile:
 
 ```bash
 lcp profile rebuild <profile> --yes
+```
+
+Or all profiles sequentially:
+
+```bash
+lcp profile rebuild --all --yes
 ```
 
 Expected behavior:
@@ -234,14 +247,36 @@ Expected behavior:
 2. A new profile image is built from the current runtime image.
 3. A new container is created with the original container name and preserved mounts.
 4. LCP verifies Claude Code continuity and runtime tools.
-5. If the bridge was running before rebuild, LCP attempts to restart it.
-6. The rollback container is kept for manual recovery until the operator decides it is safe to remove.
+5. LCP reapplies active integrations to the new container.
+6. If the bridge was running before rebuild, LCP attempts to restart it.
+7. The rollback container is kept for manual recovery until the operator decides it is safe to remove.
 
 If rebuild fails:
 
 1. Read the recovery lines printed by LCP.
 2. Check whether the rollback container was restored.
 3. Do not delete rollback containers until the user confirms the new container is healthy.
+
+After the user confirms the rebuilt profile is healthy, preview rollback cleanup:
+
+```bash
+lcp profile cleanup-rollbacks <profile> --dry-run
+```
+
+For all profiles:
+
+```bash
+lcp profile cleanup-rollbacks --all --dry-run
+```
+
+Only after reviewing the dry-run output, remove rollback containers explicitly:
+
+```bash
+lcp profile cleanup-rollbacks <profile> --yes
+lcp profile cleanup-rollbacks --all --yes
+```
+
+Do not clean rollbacks as part of rebuild itself. The cleanup command is intentionally separate so the operator can keep rollback containers until verification is complete.
 
 ## Initialize host LCP configuration
 

@@ -15,7 +15,7 @@ from .installer import install_runtime
 from .integrations.service import IntegrationService
 from .lark_cli import bind_lark_cli
 from .models import Profile, container_name, default_profile
-from .rebuild import RebuildError, plan_profile_rebuild, rebuild_profile
+from .rebuild import RebuildError, cleanup_rollback_containers, list_rollback_containers, plan_profile_rebuild, rebuild_profile
 from .selfcheck import collect_init_report
 from .store import LcpStore
 from .ui import console, print_banner, print_checks
@@ -228,11 +228,7 @@ def _verify_profile_command(name: str, run_claude: bool) -> None:
         raise typer.Exit(1)
 
 
-def _rebuild_profile(name: str, dry_run: bool, yes: bool) -> None:
-    store = LcpStore()
-    profile = _load_profile_or_exit(store, name)
-    adapter = DockerAdapter(store)
-    plan = plan_profile_rebuild(store, adapter, profile)
+def _print_rebuild_plan(plan) -> None:
     typer.echo(f"profile: {plan.profile}")
     typer.echo(f"container: {plan.container} ({plan.currentStatus})")
     typer.echo(f"bridge: {'running' if plan.bridgeRunning else 'stopped'}")
@@ -244,28 +240,110 @@ def _rebuild_profile(name: str, dry_run: bool, yes: bool) -> None:
     typer.echo("preserved mounts:")
     for mount in plan.preservedMounts:
         typer.echo(f"  {mount}")
+    typer.echo("active integrations:")
+    if plan.activeIntegrations:
+        for provider in plan.activeIntegrations:
+            typer.echo(f"  {provider}: will be reapplied after rebuild")
+    else:
+        typer.echo("  none")
     typer.echo("verification:")
     for command in plan.verification:
         typer.echo(f"  {command}")
-    if dry_run:
-        typer.echo("dry-run: would rebuild the profile image and safely replace the container with rollback")
-        return
-    if not yes:
-        _fail("profile rebuild requires explicit confirmation", "run `lcp profile rebuild <name> --dry-run` first, then rerun with `--yes`")
-    try:
-        result = rebuild_profile(store, adapter, profile)
-    except RebuildError as exc:
-        typer.echo(f"error: {exc}")
-        for line in exc.recovery:
-            if line:
-                typer.echo(f"recovery: {line}")
-        raise typer.Exit(1) from exc
+
+
+def _print_rebuild_result(profile: Profile, result) -> None:
     typer.echo(f"rebuilt: {profile.container.name}")
     typer.echo(f"rollback kept: {result.rollbackContainer}")
     for line in result.verification:
         typer.echo(f"verified: {line}")
+    for integration in result.integrations:
+        mark = "ok" if integration.ok else "failed"
+        command = f" command={integration.command}" if integration.command else ""
+        typer.echo(f"integration {mark}: {integration.provider}{command}")
     if result.bridgeRestored:
         typer.echo("bridge restored: running")
+
+
+def _rebuild_one(store: LcpStore, adapter: DockerAdapter, name: str, dry_run: bool) -> Profile:
+    profile = _load_profile_or_exit(store, name)
+    plan = plan_profile_rebuild(store, adapter, profile)
+    _print_rebuild_plan(plan)
+    if dry_run:
+        typer.echo("dry-run: would rebuild the profile image and safely replace the container with rollback")
+    return profile
+
+
+def _profile_names_or_exit(store: LcpStore, name: str | None, all_profiles: bool, command_hint: str) -> list[str]:
+    if all_profiles and name:
+        _fail("choose either a profile name or --all, not both")
+    if not all_profiles and not name:
+        _fail("profile name required", command_hint)
+    names = store.list_profiles() if all_profiles else [name]
+    if not names:
+        _fail("no profiles found")
+    return names
+
+
+def _rebuild_profile(name: str | None, all_profiles: bool, dry_run: bool, yes: bool) -> None:
+    store = LcpStore()
+    adapter = DockerAdapter(store)
+    names = _profile_names_or_exit(store, name, all_profiles, "use `lcp profile rebuild <name> --dry-run` or `lcp profile rebuild --all --dry-run`")
+    profiles = []
+    for index, profile_name in enumerate(names):
+        if index:
+            typer.echo("---")
+        profiles.append(_rebuild_one(store, adapter, profile_name, dry_run))
+    if dry_run:
+        return
+    if not yes:
+        hint = "run `lcp profile rebuild --all --dry-run` first, then rerun with `--yes`" if all_profiles else "run `lcp profile rebuild <name> --dry-run` first, then rerun with `--yes`"
+        _fail("profile rebuild requires explicit confirmation", hint)
+    for index, profile in enumerate(profiles):
+        if index:
+            typer.echo("---")
+        try:
+            result = rebuild_profile(store, adapter, profile)
+        except RebuildError as exc:
+            typer.echo(f"error: {profile.name}: {exc}")
+            for line in exc.recovery:
+                if line:
+                    typer.echo(f"recovery: {line}")
+            raise typer.Exit(1) from exc
+        _print_rebuild_result(profile, result)
+
+
+def _cleanup_rollbacks(name: str | None, all_profiles: bool, dry_run: bool, yes: bool) -> None:
+    store = LcpStore()
+    adapter = DockerAdapter(store)
+    names = _profile_names_or_exit(store, name, all_profiles, "use `lcp profile cleanup-rollbacks <name> --dry-run` or `lcp profile cleanup-rollbacks --all --dry-run`")
+    profiles = [_load_profile_or_exit(store, profile_name) for profile_name in names]
+    plans = [(profile, list_rollback_containers(adapter, profile)) for profile in profiles]
+    for index, (profile, rollbacks) in enumerate(plans):
+        if index:
+            typer.echo("---")
+        typer.echo(f"profile: {profile.name}")
+        if rollbacks:
+            for rollback in rollbacks:
+                typer.echo(f"rollback: {rollback.name} ({rollback.status})")
+        else:
+            typer.echo("rollback: none")
+        if dry_run:
+            typer.echo(f"dry-run: would remove {len(rollbacks)} rollback container(s)")
+    if dry_run:
+        return
+    if not yes:
+        hint = "run `lcp profile cleanup-rollbacks --all --dry-run` first, then rerun with `--yes`" if all_profiles else "run `lcp profile cleanup-rollbacks <name> --dry-run` first, then rerun with `--yes`"
+        _fail("rollback cleanup requires explicit confirmation", hint)
+    for index, profile in enumerate(profiles):
+        if index:
+            typer.echo("---")
+        result = cleanup_rollback_containers(adapter, profile)
+        typer.echo(f"profile: {profile.name}")
+        if result.removed:
+            for name in result.removed:
+                typer.echo(f"removed rollback: {name}")
+        else:
+            typer.echo("removed rollback: none")
 
 
 def _snapshot_profile(name: str, output: str | None) -> None:
@@ -505,12 +583,35 @@ def _show_integration_status(name: str) -> None:
             typer.echo(f"  error: {state.effective.lastError}")
 
 
-def _grant_integration(name: str, provider: str) -> None:
+def _parse_integration_config(items: list[str]) -> dict[str, str]:
+    config: dict[str, str] = {}
+    for item in items:
+        if "=" not in item:
+            _fail(f"invalid --config value: {item}", "use --config key=value")
+        key, value = item.split("=", 1)
+        if not key or not value:
+            _fail(f"invalid --config value: {item}", "use --config key=value")
+        config[key] = value
+    return config
+
+
+def _grant_integration(name: str, provider: str, from_env: bool, config_items: list[str]) -> None:
     store = LcpStore()
+    config = _parse_integration_config(config_items)
+    if provider == "proxy" and not from_env and not config:
+        _fail("proxy grant requires explicit configuration", "use `--from-env` or one or more `--config key=value` options")
+    if provider != "proxy" and (from_env or config):
+        _fail(f"provider does not accept grant config: {provider}")
     try:
         with store.profile_lock(name):
             profile = _load_profile_or_exit(store, name)
-            updated = IntegrationService(store).grant(profile, provider)
+            service = IntegrationService(store)
+            if from_env:
+                env_check = service.doctor(provider)
+                if not env_check.ok:
+                    raise RuntimeError(env_check.message or f"{provider} is not ready on host")
+                config = {**env_check.details, **config}
+            updated = service.grant(profile, provider, config if config else None)
             store.save_profile(updated)
     except RuntimeError as exc:
         _fail(str(exc))
@@ -676,11 +777,22 @@ def profile_verify(name: str, run_claude: bool = typer.Option(True, help="Run Cl
 
 @profile_app.command("rebuild")
 def profile_rebuild(
-    name: str,
-    dry_run: bool = typer.Option(False, "--dry-run", help="Preview safe profile rebuild without changing the container"),
+    name: str | None = typer.Argument(None, help="Profile name to rebuild"),
+    all_profiles: bool = typer.Option(False, "--all", help="Rebuild all profiles sequentially"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview safe profile rebuild without changing containers"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Confirm real rebuild"),
 ) -> None:
-    _rebuild_profile(name, dry_run, yes)
+    _rebuild_profile(name, all_profiles, dry_run, yes)
+
+
+@profile_app.command("cleanup-rollbacks")
+def profile_cleanup_rollbacks(
+    name: str | None = typer.Argument(None, help="Profile name whose rollback containers should be removed"),
+    all_profiles: bool = typer.Option(False, "--all", help="Remove rollback containers for all profiles"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview rollback cleanup without removing containers"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm rollback cleanup"),
+) -> None:
+    _cleanup_rollbacks(name, all_profiles, dry_run, yes)
 
 
 @profile_app.command("snapshot")
@@ -745,8 +857,13 @@ def integration_status(name: str) -> None:
 
 
 @integration_app.command("grant")
-def integration_grant(name: str, provider: str) -> None:
-    _grant_integration(name, provider)
+def integration_grant(
+    name: str,
+    provider: str,
+    from_env: bool = typer.Option(False, "--from-env", help="Read provider configuration from environment variables"),
+    config: list[str] = typer.Option([], "--config", help="Provider config as key=value; may be repeated"),
+) -> None:
+    _grant_integration(name, provider, from_env, config)
 
 
 @integration_app.command("revoke")

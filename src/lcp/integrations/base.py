@@ -18,8 +18,17 @@ class IntegrationProvider(ABC):
     def check_host(self) -> HostCheck:
         raise NotImplementedError
 
+    def check_config(self, config: dict[str, str]) -> HostCheck:
+        return HostCheck(provider=self.name, ok=True, details=config)
+
     def desired_config(self, check: HostCheck) -> dict[str, str]:
         return check.details
+
+    def prepare(self, store: LcpStore, profile: Profile) -> None:
+        pass
+
+    def cleanup(self, store: LcpStore, profile: Profile) -> None:
+        pass
 
     def mounts(self, store: LcpStore, profile: Profile) -> list[IntegrationMount]:
         return []
@@ -35,3 +44,6 @@ class IntegrationProvider(ABC):
 
     def verify_commands(self, profile: Profile) -> list[str]:
         return []
+
+    def redact(self, text: str) -> str:
+        return text

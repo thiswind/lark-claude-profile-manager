@@ -50,6 +50,24 @@ def test_proxy_provider_requires_explicit_proxy_config(monkeypatch) -> None:
     assert "proxy config not found" in check.message
 
 
+def test_proxy_provider_redacts_credentials() -> None:
+    provider = ProxyProvider()
+
+    text = provider.redact("curl http://user:secret@proxy.example:8080 && curl socks5h://u:p@proxy.example:1080")
+
+    assert "secret" not in text
+    assert "u:p" not in text
+    assert "http://***:***@proxy.example:8080" in text
+    assert "socks5h://***:***@proxy.example:1080" in text
+
+
+def test_proxy_provider_redacts_invalid_url_message() -> None:
+    check = ProxyProvider().check_config({"http": "http://user:secret@"})
+
+    assert check.ok is False
+    assert "secret" not in check.message
+
+
 def test_proxy_apply_writes_profile_and_tool_config(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("LCP_PROXY_HTTP", "http://proxy.example:8080")
     monkeypatch.setenv("LCP_PROXY_SOCKS5", "socks5h://proxy.example:1080")
@@ -66,8 +84,27 @@ def test_proxy_apply_writes_profile_and_tool_config(monkeypatch, tmp_path: Path)
     assert "/etc/profile.d/lcp-proxy.sh" in joined
     assert "/etc/apt/apt.conf.d/90lcp-proxy" in joined
     assert "npm config set proxy" in joined
-    assert "/home/thiswind/.claude/skills/lcp-proxy-project1" in joined
+    assert "/home/thiswind/.claude/skills" not in joined
+    assert (store.profile_dir("project1") / "skills" / "lcp-proxy-networking" / "SKILL.md").is_file()
+    mounts = service.mounts(profile)
+    assert mounts[0].hostPath == str(store.profile_dir("project1") / "skills" / "lcp-proxy-networking")
+    assert mounts[0].containerPath == "/home/thiswind/.claude/skills/lcp-proxy-networking"
+    assert mounts[0].mode == "ro"
     assert results[0].provider == "proxy"
+
+
+def test_proxy_apply_progress_redacts_credentials(tmp_path: Path) -> None:
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    service = IntegrationService(store)
+    profile = service.grant(profile, "proxy", {"http": "http://user:secret@proxy.example:8080"})
+    messages = []
+
+    service.apply(FakeAdapter(), profile, progress=messages.append)
+
+    joined = "\n".join(messages)
+    assert "secret" not in joined
+    assert "http://***:***@proxy.example:8080" in joined
 
 
 def test_proxy_revoke_removes_lcp_owned_config(monkeypatch, tmp_path: Path) -> None:
@@ -83,13 +120,13 @@ def test_proxy_revoke_removes_lcp_owned_config(monkeypatch, tmp_path: Path) -> N
     plan = service.plan(profile)
     profile, _ = service.apply(adapter, profile)
 
-    assert [step.action for step in plan.steps] == ["disable"]
-    assert "remove LCP-owned container configuration" in plan.steps[0].reason
+    assert [step.action for step in plan.steps] == ["recreate"]
+    assert "remove mounts" in plan.steps[0].reason
     assert profile.integrations.providers["proxy"].effective.status == "disabled"
     joined = "\n".join(adapter.commands)
     assert "rm -f /etc/profile.d/lcp-proxy.sh" in joined
     assert "npm config delete proxy" in joined
-    assert "rm -rf /home/thiswind/.claude/skills/lcp-proxy-project1" in joined
+    assert not (store.profile_dir("project1") / "skills" / "lcp-proxy-networking").exists()
 
 
 def test_default_registry_includes_proxy_provider() -> None:
@@ -105,11 +142,39 @@ def test_proxy_cli_grant_then_dry_run(monkeypatch, tmp_path: Path) -> None:
     store.save_profile(profile)
     monkeypatch.setattr(cli, "LcpStore", lambda: store)
 
-    grant = runner.invoke(cli.app, ["integration", "grant", "project1", "proxy"])
+    grant = runner.invoke(cli.app, ["integration", "grant", "project1", "proxy", "--from-env"])
     dry_run = runner.invoke(cli.app, ["integration", "apply", "project1", "--dry-run"])
 
     assert grant.exit_code == 0
     assert "granted: proxy" in grant.output
     assert dry_run.exit_code == 0
     assert "proxy: configure" in dry_run.output
+    assert "proxy: recreate" in dry_run.output
     assert "proxy: verify" in dry_run.output
+
+
+def test_proxy_cli_grant_accepts_explicit_config(monkeypatch, tmp_path: Path) -> None:
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    store.save_profile(profile)
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+
+    result = runner.invoke(cli.app, ["integration", "grant", "project1", "proxy", "--config", "http=http://proxy.example:8080", "--config", "socks5=socks5h://proxy.example:1080"])
+
+    assert result.exit_code == 0
+    profile = store.load_profile("project1")
+    config = profile.integrations.providers["proxy"].desired.config
+    assert config["http"] == "http://proxy.example:8080"
+    assert config["socks5"] == "socks5h://proxy.example:1080"
+
+
+def test_proxy_cli_grant_requires_explicit_config(monkeypatch, tmp_path: Path) -> None:
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    store.save_profile(profile)
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+
+    result = runner.invoke(cli.app, ["integration", "grant", "project1", "proxy"])
+
+    assert result.exit_code == 1
+    assert "proxy grant requires explicit configuration" in result.output

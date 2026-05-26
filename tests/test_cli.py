@@ -10,8 +10,8 @@ runner = CliRunner()
 
 
 class FakeContainer:
-    def __init__(self, status="running") -> None:
-        self.name = "lcp-project1"
+    def __init__(self, status="running", name="lcp-project1") -> None:
+        self.name = name
         self.status = status
         self.removed = False
 
@@ -24,6 +24,7 @@ class FakeContainer:
 
 class FakeAdapter:
     container = None
+    containers = []
     started = False
 
     def __init__(self, store) -> None:
@@ -34,6 +35,9 @@ class FakeAdapter:
 
     def get_container_or_none(self, profile):
         return self.container
+
+    def list_profile_containers(self, profile):
+        return self.containers
 
     def remove_container(self, profile):
         if self.container is None:
@@ -46,6 +50,9 @@ class FakeAdapter:
 
     def stop(self, profile):
         self.stopped = True
+
+    def exec(self, profile, command):
+        return ExecResult(0, "stopped")
 
 
 class FakeCreatorAdapter(FakeAdapter):
@@ -122,6 +129,92 @@ def test_profile_without_command_shows_help() -> None:
 
     assert "Manage profiles" in result.output
     assert "create" in result.output
+
+
+def test_profile_rebuild_requires_name_or_all() -> None:
+    result = runner.invoke(cli.app, ["profile", "rebuild", "--dry-run"])
+
+    assert result.exit_code == 1
+    assert "profile name required" in result.output
+
+
+def test_profile_rebuild_rejects_name_with_all(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+
+    result = runner.invoke(cli.app, ["profile", "rebuild", "project1", "--all", "--dry-run"])
+
+    assert result.exit_code == 1
+    assert "choose either a profile name or --all" in result.output
+
+
+def test_profile_rebuild_all_dry_run_lists_profiles(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    claude_dir = tmp_path / ".claude"
+    (claude_dir / "projects").mkdir(parents=True)
+    claude_json = tmp_path / ".claude.json"
+    claude_json.write_text("{}", encoding="utf-8")
+    for name in ["project1", "project2"]:
+        profile = default_profile(name, tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+        profile.mounts.claude.hostClaudeDir = str(claude_dir)
+        profile.mounts.claude.hostClaudeJson = str(claude_json)
+        store.save_profile(profile)
+    monkeypatch.setattr(FakeAdapter, "container", FakeContainer())
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "rebuild", "--all", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "profile: project1" in result.output
+    assert "profile: project2" in result.output
+    assert result.output.count("dry-run: would rebuild") == 2
+
+
+def test_profile_cleanup_rollbacks_dry_run_lists_rollback_containers(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    rollback = FakeContainer("exited", "lcp-project1-rollback-20260526010101")
+    current = FakeContainer("running", "lcp-project1")
+    other = FakeContainer("exited", "lcp-other-rollback-20260526010101")
+    monkeypatch.setattr(FakeAdapter, "containers", [rollback, current, other])
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "cleanup-rollbacks", "project1", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "rollback: lcp-project1-rollback-20260526010101 (exited)" in result.output
+    assert "lcp-other" not in result.output
+    assert "dry-run: would remove 1 rollback container(s)" in result.output
+    assert rollback.removed is False
+
+
+def test_profile_cleanup_rollbacks_requires_yes(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    monkeypatch.setattr(FakeAdapter, "containers", [FakeContainer("exited", "lcp-project1-rollback-20260526010101")])
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "cleanup-rollbacks", "project1"])
+
+    assert result.exit_code == 1
+    assert "rollback cleanup requires explicit confirmation" in result.output
+
+
+def test_profile_cleanup_rollbacks_yes_removes_matching_containers(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    rollback = FakeContainer("exited", "lcp-project1-rollback-20260526010101")
+    current = FakeContainer("running", "lcp-project1")
+    monkeypatch.setattr(FakeAdapter, "containers", [rollback, current])
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "cleanup-rollbacks", "project1", "--yes"])
+
+    assert result.exit_code == 0
+    assert rollback.removed is True
+    assert current.removed is False
+    assert "removed rollback: lcp-project1-rollback-20260526010101" in result.output
 
 
 def test_bridge_help_shows_common_actions() -> None:

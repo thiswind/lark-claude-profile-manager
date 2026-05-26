@@ -118,6 +118,9 @@ class DockerAdapter:
         except NotFound:
             return None
 
+    def list_profile_containers(self, profile: Profile) -> list[Container]:
+        return self.client.containers.list(all=True, filters={"label": f"lcp.profile={profile.name}"})
+
     def remove_container(self, profile: Profile) -> bool:
         container = self.get_container_or_none(profile)
         if container is None:
