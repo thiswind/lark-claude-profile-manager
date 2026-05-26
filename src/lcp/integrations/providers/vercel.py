@@ -67,7 +67,7 @@ class VercelProvider(IntegrationProvider):
             f"if command -v vercel >/dev/null 2>&1 && vercel --version | grep -Eq {shlex.quote(pattern)}; then echo 'vercel {version} already installed'; else {install}; fi"
         ]
 
-    def verify_commands(self, profile: Profile) -> list[str]:
+    def verify_commands(self, profile: Profile, external: bool = False) -> list[str]:
         home = shlex.quote(profile.container.user.home)
         return [
             f"tmp=$(mktemp -d) && mkdir -p \"$tmp/.local/share\" && cp -a {home}/.local/share/com.vercel.cli \"$tmp/.local/share/\" && chmod -R u+w \"$tmp/.local/share/com.vercel.cli\" && HOME=\"$tmp\" vercel whoami; code=$?; rm -rf \"$tmp\"; exit $code"

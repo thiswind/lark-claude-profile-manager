@@ -52,5 +52,5 @@ class GitProvider(IntegrationProvider):
             f"git config --global user.email {shlex.quote(user_email)}",
         ]
 
-    def verify_commands(self, profile: Profile) -> list[str]:
+    def verify_commands(self, profile: Profile, external: bool = False) -> list[str]:
         return ["git config --global user.name", "git config --global user.email"]

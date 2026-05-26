@@ -184,6 +184,12 @@ lcp integration status <profile>
 lcp profile status <profile>
 ```
 
+Proxy verification is intentionally conservative by default. It checks that proxy configuration exists inside the container but does not contact external services. If the user explicitly wants an external network probe, run:
+
+```bash
+lcp integration verify <profile> proxy --external
+```
+
 If apply recreated a container, confirm the bridge is running. If it is stopped, restart through LCP:
 
 ```bash
@@ -207,6 +213,32 @@ Important safety rules:
 - Treat proxy URLs as sensitive when they contain credentials; LCP redacts provider output, but operators should still avoid pasting raw proxy URLs into chat or logs.
 - Use `grant` again after the host reauthenticates, rotates credentials, upgrades a host CLI whose version should be mirrored in the container, or changes proxy endpoint configuration.
 - If `apply` fails, read `lcp integration status <profile>` before retrying.
+
+## Manage shared base and runtime images
+
+Preview shared image operations before real builds:
+
+```bash
+lcp image status
+lcp image build-base --dry-run
+lcp runtime apply --dry-run
+```
+
+Real builds require explicit confirmation:
+
+```bash
+lcp image build-base --yes
+lcp runtime apply --yes
+```
+
+Default shared image tags are versioned with the LCP version and Ubuntu LTS suffix, for example:
+
+```text
+lcp/base:0.1.2-ubuntu24.04
+lcp/runtime:0.1.2-ubuntu24.04
+```
+
+Building shared images does not recreate existing profile containers. Use profile rebuild after reviewing its dry-run output.
 
 ## Rebuild profile containers safely
 

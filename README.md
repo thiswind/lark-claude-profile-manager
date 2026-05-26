@@ -220,8 +220,8 @@ lcp runtime apply --yes
 
 说明：
 
-- `image build-base` 管理 LCP 共享基础镜像。
-- `runtime apply` 构建 LCP runtime 镜像，不会自动重建现有 profile 容器。
+- `image build-base` 管理 LCP 共享基础镜像，默认 tag 使用 LCP 版本和 Ubuntu LTS 后缀，例如 `lcp/base:0.1.2-ubuntu24.04`。
+- `runtime apply` 构建 LCP runtime 镜像，默认 tag 同样版本化，例如 `lcp/runtime:0.1.2-ubuntu24.04`，不会自动重建现有 profile 容器。
 - 现有容器需要单独执行 `lcp profile rebuild <name> --dry-run`，确认后再 `--yes`。
 - 需要与宿主机认证或版本同步的工具，例如 `gh`、`vercel`，不会预装进 runtime 层，而是在对应 integration apply 时处理。
 
@@ -297,6 +297,7 @@ lcp integration apply <profile> --yes
 - `proxy` 只从显式 `--from-env` 或 `--config key=value` 读取代理地址；LCP 不内置任何宿主机特定代理端点。`--from-env` 可用变量包括 `LCP_PROXY_HTTP`、`LCP_PROXY_HTTPS`、`LCP_PROXY_SOCKS5`、`LCP_PROXY_NO_PROXY`。
 - `proxy` apply 会写入 `/etc/profile.d/lcp-proxy.sh`、apt/npm/pip 配置，并把 `~/.lcp/profiles/<profile>/skills/lcp-proxy-networking/` 只读挂载到容器内 `~/.claude/skills/lcp-proxy-networking/`。
 - `proxy` provider 会在错误信息和 verbose apply 输出中隐藏代理 URL 凭据。
+- 默认 `lcp integration verify <profile> proxy` 只检查容器内代理配置；需要实际外网连通性探测时，显式运行 `lcp integration verify <profile> proxy --external`。
 - `apply` 可能会重建容器以应用挂载变化；重建后会自动恢复基础 runtime 工具，再执行 provider 安装、配置和验证。
 - `--verbose` 会显示安装和配置步骤；`--reuse-matching` 会在 provider 支持时复用容器内已匹配的 CLI 版本。
 

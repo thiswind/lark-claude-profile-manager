@@ -42,7 +42,7 @@ class IntegrationProvider(ABC):
     def revoke_commands(self, profile: Profile) -> list[str]:
         return []
 
-    def verify_commands(self, profile: Profile) -> list[str]:
+    def verify_commands(self, profile: Profile, external: bool = False) -> list[str]:
         return []
 
     def redact(self, text: str) -> str:

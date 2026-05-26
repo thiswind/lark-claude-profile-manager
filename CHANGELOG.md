@@ -2,12 +2,13 @@
 
 ## Unreleased
 
-- Add shared base/runtime image management commands and profile rebuild dry-run planning.
+- Add shared base/runtime image management commands and profile rebuild dry-run planning with versioned default shared image tags.
 - Implement confirmed `lcp profile rebuild <profile> --yes` and `lcp profile rebuild --all --yes` with rollback container preservation, Claude Code continuity checks, bridge restoration, and active integration reapply.
 - Add dry-run-first rollback cleanup commands for single-profile and all-profile rebuild rollback containers.
 - Add grantable `proxy` integration for HTTP, HTTPS, and SOCKS proxy configuration using explicit `--from-env` or `--config key=value` endpoints, without hardcoded host proxy addresses.
 - Generate a profile-local Claude Code proxy skill and mount it read-only into profile containers during proxy integration apply.
 - Redact proxy URL credentials from provider errors and verbose integration apply output.
+- Add opt-in `lcp integration verify <profile> proxy --external` network probing while keeping default proxy verification local-only.
 
 ## 0.1.2 - 2026-05-25
 

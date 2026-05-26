@@ -30,7 +30,7 @@ class FakeProvider(IntegrationProvider):
     def configure_commands(self, profile):
         return ["configure fake"]
 
-    def verify_commands(self, profile):
+    def verify_commands(self, profile, external: bool = False):
         return ["verify fake"]
 
 

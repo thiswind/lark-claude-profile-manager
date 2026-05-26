@@ -124,8 +124,11 @@ class ProxyProvider(IntegrationProvider):
             "rm -f ~/.config/pip/pip.conf",
         ]
 
-    def verify_commands(self, profile: Profile) -> list[str]:
-        return ["bash -lc 'source /etc/profile.d/lcp-proxy.sh && env | grep -E \"^(http_proxy|https_proxy|all_proxy)=\"'"]
+    def verify_commands(self, profile: Profile, external: bool = False) -> list[str]:
+        commands = ["bash -lc 'source /etc/profile.d/lcp-proxy.sh && env | grep -E \"^(http_proxy|https_proxy|all_proxy)=\"'"]
+        if external:
+            commands.append("bash -lc 'source /etc/profile.d/lcp-proxy.sh && curl -fsSL --max-time 10 https://api.github.com/rate_limit >/dev/null'")
+        return commands
 
     def _skill_dir(self, store: LcpStore, profile: Profile):
         return store.profile_dir(profile.name) / "skills" / "lcp-proxy-networking"

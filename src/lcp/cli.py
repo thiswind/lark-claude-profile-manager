@@ -636,13 +636,15 @@ def _revoke_integration(name: str, provider: str) -> None:
     typer.echo(f"run `lcp integration apply {name} --dry-run` to preview container changes")
 
 
-def _verify_integration(name: str, provider: str | None) -> None:
+def _verify_integration(name: str, provider: str | None, external: bool) -> None:
     store = LcpStore()
     profile = _load_profile_or_exit(store, name)
     adapter = DockerAdapter(store)
     _get_container_or_exit(adapter, profile)
+    if external and provider != "proxy":
+        _fail("external verification is only supported for proxy", "use `lcp integration verify <profile> proxy --external`")
     try:
-        results = IntegrationService(store).verify(adapter, profile, provider)
+        results = IntegrationService(store).verify(adapter, profile, provider, external=external)
     except (RuntimeError, ValueError) as exc:
         _fail(str(exc))
     failures = 0
@@ -872,8 +874,12 @@ def integration_revoke(name: str, provider: str) -> None:
 
 
 @integration_app.command("verify")
-def integration_verify(name: str, provider: str | None = None) -> None:
-    _verify_integration(name, provider)
+def integration_verify(
+    name: str,
+    provider: str | None = typer.Argument(None, help="Provider name to verify"),
+    external: bool = typer.Option(False, "--external", help="Run opt-in external network verification for proxy"),
+) -> None:
+    _verify_integration(name, provider, external)
 
 
 @integration_app.command("apply")

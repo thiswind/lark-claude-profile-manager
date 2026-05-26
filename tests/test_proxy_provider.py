@@ -15,8 +15,12 @@ runner = CliRunner()
 
 
 class FakeAdapter:
-    def __init__(self):
+    def __init__(self, store=None):
+        self.store = store
         self.commands = []
+
+    def get_container_or_none(self, profile):
+        return object()
 
     def exec(self, profile, command):
         self.commands.append(command)
@@ -91,6 +95,34 @@ def test_proxy_apply_writes_profile_and_tool_config(monkeypatch, tmp_path: Path)
     assert mounts[0].containerPath == "/home/thiswind/.claude/skills/lcp-proxy-networking"
     assert mounts[0].mode == "ro"
     assert results[0].provider == "proxy"
+
+
+def test_proxy_verify_external_is_opt_in(tmp_path: Path) -> None:
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    service = IntegrationService(store)
+    profile = service.grant(profile, "proxy", {"http": "http://proxy.example:8080"})
+    adapter = FakeAdapter()
+
+    service.verify(adapter, profile, "proxy")
+    normal_commands = list(adapter.commands)
+    service.verify(adapter, profile, "proxy", external=True)
+
+    assert not any("api.github.com" in command for command in normal_commands)
+    assert any("api.github.com" in command for command in adapter.commands)
+
+
+def test_proxy_cli_verify_external_requires_proxy_provider(monkeypatch, tmp_path: Path) -> None:
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    store.save_profile(profile)
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["integration", "verify", "project1", "git", "--external"])
+
+    assert result.exit_code == 1
+    assert "external verification is only supported for proxy" in result.output
 
 
 def test_proxy_apply_progress_redacts_credentials(tmp_path: Path) -> None:

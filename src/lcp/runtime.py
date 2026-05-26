@@ -2,6 +2,12 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from . import __version__
+
+RUNTIME_OS_TAG = "ubuntu24.04"
+DEFAULT_BASE_IMAGE = f"lcp/base:{__version__}-{RUNTIME_OS_TAG}"
+DEFAULT_RUNTIME_IMAGE = f"lcp/runtime:{__version__}-{RUNTIME_OS_TAG}"
+
 
 class RuntimeTool(BaseModel):
     package: str
@@ -10,8 +16,8 @@ class RuntimeTool(BaseModel):
 
 class RuntimeManifest(BaseModel):
     schemaVersion: int = 1
-    baseImage: str = "lcp/base:latest"
-    runtimeImage: str = "lcp/runtime:latest"
+    baseImage: str = DEFAULT_BASE_IMAGE
+    runtimeImage: str = DEFAULT_RUNTIME_IMAGE
     tools: dict[str, RuntimeTool] = Field(default_factory=dict)
 
 

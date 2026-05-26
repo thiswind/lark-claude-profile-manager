@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from lcp.models import default_profile
+from lcp.runtime import DEFAULT_BASE_IMAGE, DEFAULT_RUNTIME_IMAGE
 from lcp.store import LcpStore
 
 
@@ -33,6 +34,6 @@ def test_store_lists_profiles(tmp_path: Path) -> None:
 def test_store_loads_default_runtime_manifest(tmp_path: Path) -> None:
     store = LcpStore(tmp_path / ".lcp")
     manifest = store.load_runtime_manifest()
-    assert manifest.baseImage == "lcp/base:latest"
-    assert manifest.runtimeImage == "lcp/runtime:latest"
+    assert manifest.baseImage == DEFAULT_BASE_IMAGE
+    assert manifest.runtimeImage == DEFAULT_RUNTIME_IMAGE
     assert "claude-code" in manifest.tools

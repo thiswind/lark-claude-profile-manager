@@ -79,7 +79,7 @@ class GitHubProvider(IntegrationProvider):
             f"if command -v gh >/dev/null 2>&1 && gh --version | grep -Eq {shlex.quote(re.escape(version))}; then echo 'gh {version} already installed'; else {install}; fi"
         ]
 
-    def verify_commands(self, profile: Profile) -> list[str]:
+    def verify_commands(self, profile: Profile, external: bool = False) -> list[str]:
         return ["gh --version", "gh auth status"]
 
     def _parse_version(self, text: str) -> str | None:

@@ -47,8 +47,8 @@ class IntegrationService:
     def revoke_commands(self, profile: Profile, provider_name: str) -> list[str]:
         return self.registry.get(provider_name).revoke_commands(profile)
 
-    def verify_commands(self, profile: Profile, provider_name: str) -> list[str]:
-        return self.registry.get(provider_name).verify_commands(profile)
+    def verify_commands(self, profile: Profile, provider_name: str, external: bool = False) -> list[str]:
+        return self.registry.get(provider_name).verify_commands(profile, external=external)
 
     def plan(self, profile: Profile) -> IntegrationPlan:
         steps: list[IntegrationPlanStep] = []
@@ -120,14 +120,14 @@ class IntegrationService:
         profile.integrations.providers[provider_name] = state
         return profile
 
-    def verify(self, adapter, profile: Profile, provider_name: str | None = None) -> list[IntegrationVerifyResult]:
+    def verify(self, adapter, profile: Profile, provider_name: str | None = None, external: bool = False) -> list[IntegrationVerifyResult]:
         provider_names = [provider_name] if provider_name else sorted(profile.integrations.providers)
         results: list[IntegrationVerifyResult] = []
         for name in provider_names:
             state = profile.integrations.providers.get(name)
             if not state or not state.desired.enabled:
                 raise RuntimeError(f"{name} is not granted for profile {profile.name}")
-            commands = self.verify_commands(profile, name)
+            commands = self.verify_commands(profile, name, external=external)
             if not commands:
                 results.append(IntegrationVerifyResult(provider=name, command="", ok=True, output="no verification command"))
                 continue
