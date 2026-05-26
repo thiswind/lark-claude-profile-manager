@@ -15,7 +15,7 @@ from .installer import install_runtime
 from .integrations.service import IntegrationService
 from .lark_cli import bind_lark_cli
 from .models import Profile, container_name, default_profile
-from .rebuild import plan_profile_rebuild
+from .rebuild import RebuildError, plan_profile_rebuild, rebuild_profile
 from .selfcheck import collect_init_report
 from .store import LcpStore
 from .ui import console, print_banner, print_checks
@@ -251,8 +251,21 @@ def _rebuild_profile(name: str, dry_run: bool, yes: bool) -> None:
         typer.echo("dry-run: would rebuild the profile image and safely replace the container with rollback")
         return
     if not yes:
-        _fail("real profile rebuild is not implemented yet", "run with --dry-run for the current planning preview")
-    _fail("real profile rebuild is not implemented yet", "this phase only adds the safe dry-run plan")
+        _fail("profile rebuild requires explicit confirmation", "run `lcp profile rebuild <name> --dry-run` first, then rerun with `--yes`")
+    try:
+        result = rebuild_profile(store, adapter, profile)
+    except RebuildError as exc:
+        typer.echo(f"error: {exc}")
+        for line in exc.recovery:
+            if line:
+                typer.echo(f"recovery: {line}")
+        raise typer.Exit(1) from exc
+    typer.echo(f"rebuilt: {profile.container.name}")
+    typer.echo(f"rollback kept: {result.rollbackContainer}")
+    for line in result.verification:
+        typer.echo(f"verified: {line}")
+    if result.bridgeRestored:
+        typer.echo("bridge restored: running")
 
 
 def _snapshot_profile(name: str, output: str | None) -> None:

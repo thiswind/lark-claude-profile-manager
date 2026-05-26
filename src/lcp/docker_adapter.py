@@ -83,8 +83,9 @@ class DockerAdapter:
             rm=True,
         )
 
-    def create_profile_container(self, profile: Profile) -> Container:
-        self.build_profile_image(profile)
+    def create_profile_container(self, profile: Profile, build_image: bool = True) -> Container:
+        if build_image:
+            self.build_profile_image(profile)
         self._ensure_workspace_host_dir(profile)
         mounts = self._binds(profile)
         user = profile.container.user

@@ -30,5 +30,8 @@ class IntegrationProvider(ABC):
     def configure_commands(self, profile: Profile) -> list[str]:
         return []
 
+    def revoke_commands(self, profile: Profile) -> list[str]:
+        return []
+
     def verify_commands(self, profile: Profile) -> list[str]:
         return []

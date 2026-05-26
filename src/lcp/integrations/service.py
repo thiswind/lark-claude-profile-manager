@@ -42,6 +42,9 @@ class IntegrationService:
     def configure_commands(self, profile: Profile, provider_name: str) -> list[str]:
         return self.registry.get(provider_name).configure_commands(profile)
 
+    def revoke_commands(self, profile: Profile, provider_name: str) -> list[str]:
+        return self.registry.get(provider_name).revoke_commands(profile)
+
     def verify_commands(self, profile: Profile, provider_name: str) -> list[str]:
         return self.registry.get(provider_name).verify_commands(profile)
 
@@ -52,7 +55,8 @@ class IntegrationService:
             provider = self.registry.get(name)
             if not state.desired.enabled:
                 if state.effective.status != "disabled":
-                    steps.append(IntegrationPlanStep(provider=name, action="disable", reason="integration revoked; recreate container to remove mounts if needed"))
+                    reason = "integration revoked; recreate container to remove mounts" if provider.capabilities().requiresMount else "integration revoked; remove LCP-owned container configuration"
+                    steps.append(IntegrationPlanStep(provider=name, action="disable", reason=reason))
                 continue
             capabilities = provider.capabilities()
             if capabilities.requiresContainerInstall:
@@ -100,8 +104,12 @@ class IntegrationService:
             move_snapshot_to_trash(integration_dir / "snapshot", integration_dir / "trash", snapshot_id)
         state.desired.snapshotPath = None
         state.desired.snapshotId = None
-        state.effective.status = "pending_recreate"
-        state.effective.reason = "revoked; run `lcp integration apply` to remove mounts"
+        if self.registry.get(provider_name).capabilities().requiresMount:
+            state.effective.status = "pending_recreate"
+            state.effective.reason = "revoked; run `lcp integration apply` to remove mounts"
+        else:
+            state.effective.status = "pending_config"
+            state.effective.reason = "revoked; run `lcp integration apply` to remove container configuration"
         state.effective.lastError = None
         profile.integrations.providers[provider_name] = state
         return profile
@@ -123,6 +131,24 @@ class IntegrationService:
         return results
 
     def apply(self, adapter, profile: Profile, reuse_matching: bool = False, progress=None) -> tuple[Profile, list[IntegrationVerifyResult]]:
+        disabled_names = sorted(name for name, state in profile.integrations.providers.items() if not state.desired.enabled and state.effective.status != "disabled")
+        for name in disabled_names:
+            state = profile.integrations.providers[name]
+            try:
+                for command in self.revoke_commands(profile, name):
+                    if progress:
+                        progress(f"revoke {name}: {command}")
+                    result = adapter.exec(profile, command)
+                    if result.exit_code != 0:
+                        raise RuntimeError(result.output.strip() or f"revoke failed: {name}")
+                state.effective.status = "disabled"
+                state.effective.reason = "disabled"
+                state.effective.lastError = None
+            except RuntimeError as exc:
+                state.effective.status = "error"
+                state.effective.lastError = str(exc)
+                state.effective.reason = "revoke cleanup failed"
+                raise
         active_names = sorted(name for name, state in profile.integrations.providers.items() if state.desired.enabled)
         for name in active_names:
             state = profile.integrations.providers[name]

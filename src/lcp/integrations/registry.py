@@ -1,11 +1,12 @@
 from .base import IntegrationProvider
 from .providers.git import GitProvider
 from .providers.github import GitHubProvider
+from .providers.proxy import ProxyProvider
 from .providers.vercel import VercelProvider
 
 
 def default_providers() -> dict[str, IntegrationProvider]:
-    providers: list[IntegrationProvider] = [GitProvider(), GitHubProvider(), VercelProvider()]
+    providers: list[IntegrationProvider] = [GitProvider(), GitHubProvider(), ProxyProvider(), VercelProvider()]
     return {provider.name: provider for provider in providers}
 
 
