@@ -41,16 +41,23 @@ while true; do
 done
 ' >/logs/bridge-supervisor.out 2>&1 &
 echo $! > {BRIDGE_SUPERVISOR_PID}
-sleep 2
-if ! kill -0 $(cat {BRIDGE_SUPERVISOR_PID}) 2>/dev/null; then
-  echo failed
-  exit 1
-fi
-if grep -E -q '未检测到飞书应用配置|进入扫码创建向导' {BRIDGE_LOG} 2>/dev/null; then
-  echo "missing-config: run 'lcp bridge {profile.name} run' first to complete the QR-code setup"
-  exit 2
-fi
-echo started:$(cat {BRIDGE_SUPERVISOR_PID})
+for attempt in $(seq 1 15); do
+  if ! kill -0 $(cat {BRIDGE_SUPERVISOR_PID}) 2>/dev/null; then
+    echo failed
+    exit 1
+  fi
+  if grep -E -q '未检测到飞书应用配置|进入扫码创建向导' {BRIDGE_LOG} 2>/dev/null; then
+    echo "missing-config: run 'lcp bridge {profile.name} run' first to complete the QR-code setup"
+    exit 2
+  fi
+  if pgrep -f '^node .*/lark-channel-bridge run($| )' >/dev/null; then
+    echo started:$(cat {BRIDGE_SUPERVISOR_PID})
+    exit 0
+  fi
+  sleep 1
+done
+echo unhealthy:$(cat {BRIDGE_SUPERVISOR_PID}):no bridge run process
+exit 1
 """.strip()
     result = adapter.exec(profile, command)
     if result.exit_code != 0:

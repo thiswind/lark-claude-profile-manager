@@ -68,6 +68,8 @@ def test_start_bridge_launches_supervisor(tmp_path) -> None:
     assert "if [ ! -s \"$HOME/.lark-channel/config.json\" ]" in adapter.commands[1]
     assert "nohup bash -lc" in adapter.commands[1]
     assert "lark-channel-bridge run" in adapter.commands[1]
+    assert "for attempt in $(seq 1 15)" in adapter.commands[1]
+    assert "no bridge run process" in adapter.commands[1]
     assert "lark-channel-bridge start" not in adapter.commands[1]
 
 
