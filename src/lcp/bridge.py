@@ -41,7 +41,7 @@ while true; do
 done
 ' >/logs/bridge-supervisor.out 2>&1 &
 echo $! > {BRIDGE_SUPERVISOR_PID}
-for attempt in $(seq 1 15); do
+for attempt in $(seq 1 60); do
   if ! kill -0 $(cat {BRIDGE_SUPERVISOR_PID}) 2>/dev/null; then
     echo failed
     exit 1
