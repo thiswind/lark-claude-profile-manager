@@ -1,4 +1,5 @@
 from lcp.bridge import bridge_status, start_bridge, stop_bridge
+from lcp.cli import _bind_lark_cli_or_exit
 from lcp.models import default_profile
 
 
@@ -71,6 +72,17 @@ def test_start_bridge_launches_supervisor(tmp_path) -> None:
     assert "for attempt in $(seq 1 60)" in adapter.commands[1]
     assert "no bridge run process" in adapter.commands[1]
     assert "lark-channel-bridge start" not in adapter.commands[1]
+
+
+def test_bind_lark_cli_skips_when_already_bound(tmp_path, capsys) -> None:
+    profile = make_profile(tmp_path)
+    adapter = FakeAdapter(["bound: cli_123"])
+
+    _bind_lark_cli_or_exit(adapter, profile)
+
+    assert "bound: cli_123" in capsys.readouterr().out
+    assert len(adapter.commands) == 1
+    assert "lark-cli config bind" not in adapter.commands[0]
 
 
 def test_start_bridge_fails_when_config_is_missing(tmp_path) -> None:

@@ -234,8 +234,8 @@ lcp runtime apply --yes
 Default shared image tags are versioned with the LCP version and Ubuntu LTS suffix, for example:
 
 ```text
-lcp/base:0.1.2-ubuntu24.04
-lcp/runtime:0.1.2-ubuntu24.04
+lcp/base:0.2.0-ubuntu24.04
+lcp/runtime:0.2.0-ubuntu24.04
 ```
 
 Building shared images does not recreate existing profile containers. Use profile rebuild after reviewing its dry-run output.

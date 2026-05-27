@@ -52,7 +52,7 @@ class FakeAdapter:
         self.stopped = True
 
     def exec(self, profile, command):
-        return ExecResult(0, "stopped")
+        return ExecResult(1, "stopped")
 
 
 class FakeCreatorAdapter(FakeAdapter):
@@ -93,7 +93,7 @@ def test_version_option_shows_package_version() -> None:
     result = runner.invoke(cli.app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.output.strip() == "lcp 0.1.2"
+    assert result.output.strip() == "lcp 0.2.0"
 
 
 def test_help_shows_grouped_commands_and_hides_legacy_lifecycle_commands() -> None:

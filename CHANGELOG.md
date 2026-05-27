@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-05-27
 
 - Add shared base/runtime image management commands and profile rebuild dry-run planning with versioned default shared image tags.
 - Implement confirmed `lcp profile rebuild <profile> --yes` and `lcp profile rebuild --all --yes` with rollback container preservation, Claude Code continuity checks, bridge restoration, and active integration reapply.
