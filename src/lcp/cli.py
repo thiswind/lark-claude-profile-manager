@@ -13,7 +13,7 @@ from .bridge import bridge_status, start_bridge, stop_bridge, BRIDGE_LOG
 from .docker_adapter import DockerAdapter
 from .installer import install_runtime
 from .integrations.service import IntegrationService
-from .lark_cli import LARK_CLI_BOUND_CHECK, bind_lark_cli
+from .lark_cli import LARK_CLI_BOT_IDENTITY_CHECK, bind_lark_cli
 from .models import Profile, container_name, default_profile
 from .rebuild import RebuildError, cleanup_rollback_containers, list_rollback_containers, plan_profile_rebuild, rebuild_profile
 from .selfcheck import collect_init_report
@@ -83,7 +83,7 @@ def _get_container_or_exit(adapter: DockerAdapter, profile: Profile):
 
 
 def _bind_lark_cli_or_exit(adapter: DockerAdapter, profile: Profile) -> None:
-    bound = adapter.exec(profile, LARK_CLI_BOUND_CHECK)
+    bound = adapter.exec(profile, LARK_CLI_BOT_IDENTITY_CHECK)
     if bound.exit_code == 0:
         output = bound.output.strip()
         typer.echo(output or "lark-cli bound")

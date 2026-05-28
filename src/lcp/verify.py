@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import shlex
 
 from .docker_adapter import DockerAdapter
-from .lark_cli import LARK_CLI_BOUND_CHECK
+from .lark_cli import LARK_CLI_BOT_IDENTITY_CHECK
 from .models import Profile
 
 
@@ -34,7 +34,7 @@ def verify_profile(adapter: DockerAdapter, profile: Profile, run_claude: bool = 
     if run_claude:
         run("claude_non_interactive", "claude -p 'reply ok' --output-format stream-json --verbose")
     run("lark_cli", "lark-cli --version")
-    run("lark_cli_bound", LARK_CLI_BOUND_CHECK)
+    run("lark_cli_bot_identity", LARK_CLI_BOT_IDENTITY_CHECK)
     run("bridge_version", "lark-channel-bridge --version")
     run("bridge_help", "lark-channel-bridge --help >/tmp/lcp-bridge-help.txt && test -s /tmp/lcp-bridge-help.txt")
 

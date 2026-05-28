@@ -93,7 +93,7 @@ def test_version_option_shows_package_version() -> None:
     result = runner.invoke(cli.app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.output.strip() == "lcp 0.2.0"
+    assert result.output.strip() == "lcp 0.2.1"
 
 
 def test_help_shows_grouped_commands_and_hides_legacy_lifecycle_commands() -> None:
@@ -500,7 +500,7 @@ def test_bridge_restart_binds_lark_cli_before_starting_bridge(monkeypatch, tmp_p
     assert "restarted: lcp-project1" in result.output
 
 
-def test_profile_verify_checks_lark_cli_binding(monkeypatch, tmp_path: Path) -> None:
+def test_profile_verify_checks_lark_cli_bot_identity(monkeypatch, tmp_path: Path) -> None:
     store = make_store(tmp_path)
     FakeAdapter.container = FakeContainer()
     commands = []
@@ -518,7 +518,7 @@ def test_profile_verify_checks_lark_cli_binding(monkeypatch, tmp_path: Path) -> 
     result = runner.invoke(cli.app, ["profile", "verify", "project1", "--no-run-claude"])
 
     assert result.exit_code == 0
-    assert "ok: lark_cli_bound" in result.output
+    assert "ok: lark_cli_bot_identity" in result.output
     assert any(".lark-cli/lark-channel/config.json" in command for command in commands)
 
 

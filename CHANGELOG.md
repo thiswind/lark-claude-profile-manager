@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 - 2026-05-28
+
+- Verify and repair profile-local `lark-cli` as bot-only/default-bot by default, so managed bridge start/restart and attachment sending use the profile's own Feishu/Lark bot without requiring user OAuth.
+- Rename the profile verification check from `lark_cli_bound` to `lark_cli_bot_identity` and allow `user: missing` while still rejecting app mismatches, non-bot defaults, and non-ready bot identity.
+
 ## 0.2.0 - 2026-05-27
 
 - Add shared base/runtime image management commands and profile rebuild dry-run planning with versioned default shared image tags.

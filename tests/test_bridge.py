@@ -1,5 +1,6 @@
 from lcp.bridge import bridge_status, start_bridge, stop_bridge
 from lcp.cli import _bind_lark_cli_or_exit
+from lcp.lark_cli import LARK_CLI_BOT_IDENTITY_CHECK
 from lcp.models import default_profile
 
 
@@ -74,15 +75,35 @@ def test_start_bridge_launches_supervisor(tmp_path) -> None:
     assert "lark-channel-bridge start" not in adapter.commands[1]
 
 
+def test_lark_cli_bot_identity_check_enforces_bot_defaults() -> None:
+    assert "lark-cli auth status --json" in LARK_CLI_BOT_IDENTITY_CHECK
+    assert "identity mismatch: defaultAs" in LARK_CLI_BOT_IDENTITY_CHECK
+    assert "identity mismatch: identity" in LARK_CLI_BOT_IDENTITY_CHECK
+    assert "bot identity not ready" in LARK_CLI_BOT_IDENTITY_CHECK
+    assert "user" not in LARK_CLI_BOT_IDENTITY_CHECK
+
+
 def test_bind_lark_cli_skips_when_already_bound(tmp_path, capsys) -> None:
     profile = make_profile(tmp_path)
-    adapter = FakeAdapter(["bound: cli_123"])
+    adapter = FakeAdapter(["bot-bound: cli_123"])
+
+    _bind_lark_cli_or_exit(adapter, profile)
+
+    assert "bot-bound: cli_123" in capsys.readouterr().out
+    assert len(adapter.commands) == 1
+    assert "lark-cli config bind" not in adapter.commands[0]
+
+
+def test_bind_lark_cli_repairs_to_bot_only(tmp_path, capsys) -> None:
+    profile = make_profile(tmp_path)
+    adapter = FakeAdapter([(1, "identity mismatch: defaultAs=user"), "bound: cli_123"])
 
     _bind_lark_cli_or_exit(adapter, profile)
 
     assert "bound: cli_123" in capsys.readouterr().out
-    assert len(adapter.commands) == 1
-    assert "lark-cli config bind" not in adapter.commands[0]
+    assert len(adapter.commands) == 2
+    assert "LARK_CHANNEL=1 lark-cli config bind --source lark-channel --identity bot-only --force" in adapter.commands[1]
+    assert "LARK_CHANNEL=1 lark-cli config default-as bot" in adapter.commands[1]
 
 
 def test_start_bridge_fails_when_config_is_missing(tmp_path) -> None:

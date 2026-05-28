@@ -445,7 +445,10 @@ Expected result:
   ```
 
 - The bound app id matches the bridge app id.
-- The default identity is bot.
+- The default identity is `bot`.
+- The effective identity is `bot` or `bot-only`.
+- The bot identity is ready.
+- `user: missing` is acceptable unless the task explicitly needs user OAuth.
 
 If manual bind fails with missing config:
 
@@ -477,21 +480,23 @@ What LCP does:
 
 1. Ensures the profile container exists.
 2. Starts the container if needed.
-3. Runs profile-local `lark-cli` bind:
+3. Checks whether profile-local `lark-cli` is already bound to this profile's bot identity.
+4. If needed, repairs the binding with:
 
    ```bash
-   lark-cli config bind --source lark-channel --identity bot-only
+   LARK_CHANNEL=1 lark-cli config bind --source lark-channel --identity bot-only --force
+   LARK_CHANNEL=1 lark-cli config default-as bot
    ```
 
-4. Fails fast if bridge config is missing or `lark-cli` bind fails.
-5. Starts a supervisor loop inside the container.
-6. The supervisor loop runs:
+5. Fails fast if bridge config is missing or `lark-cli` cannot be put into `bot-only` / default `bot` state.
+6. Starts a supervisor loop inside the container.
+7. The supervisor loop runs:
 
    ```bash
    lark-channel-bridge run
    ```
 
-7. Bridge logs go to:
+8. Bridge logs go to:
 
    ```text
    /logs/bridge.log
@@ -608,10 +613,10 @@ Important checks:
 - Node and npm.
 - Claude Code availability.
 - `lark-cli` availability.
-- `lark_cli_bound`.
+- `lark_cli_bot_identity`.
 - `lark-channel-bridge` availability.
 
-If `lark_cli_bound` fails:
+If `lark_cli_bot_identity` fails:
 
 1. Run:
 
@@ -813,12 +818,12 @@ lcp profile verify <name> --no-run-claude
 Then inspect:
 
 - Is bridge running?
-- Does `lark_cli_bound` pass?
+- Does `lark_cli_bot_identity` pass?
 - Do logs show event subscription, permission, app credential, or network errors?
 - Was the bot added to the correct chat?
 - Is this the correct profile for the target bot?
 
-Failure: `lark_cli_bound` app mismatch.
+Failure: `lark_cli_bot_identity` app mismatch.
 
 Interpretation:
 
@@ -987,7 +992,7 @@ If all checks pass, report:
 - Profile name.
 - Container name.
 - Bridge status.
-- Whether `lark_cli_bound` passed.
+- Whether `lark_cli_bot_identity` passed.
 - How to view logs.
 
 Do not claim the Feishu/Lark client works unless the user confirms a message round trip or logs prove it.
