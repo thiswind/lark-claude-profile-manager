@@ -207,6 +207,21 @@ lcp profile rebuild --all --yes
 lcp profile rm <name> --yes
 ```
 
+### Version Lock
+
+每个 LCP release 都带有一份 Version Lock，用来记录该版本对应的外部依赖策略、版本、受控仓库锚点和验证状态。
+
+```bash
+lcp version-lock show
+lcp version-lock verify
+```
+
+说明：
+
+- Version Lock 类似 `Gemfile.lock`，但锁定的是 LCP 的运行时集成边界。
+- 对高风险外部依赖，后续会记录 thiswind-controlled repo、tag 和 exact commit SHA。
+- `verify` 会检查 lock 版本是否匹配当前 LCP 包版本，并拒绝 critical dependency 使用 `latest`。
+
 ### Shared images and runtime tools
 
 ```bash

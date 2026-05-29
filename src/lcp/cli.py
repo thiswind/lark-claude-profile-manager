@@ -20,6 +20,7 @@ from .selfcheck import collect_init_report
 from .store import LcpStore
 from .ui import console, print_banner, print_checks
 from .verify import verify_profile
+from .version_lock import load_version_lock, verify_version_lock
 
 app = typer.Typer(help="Manage Lark Claude profile containers", context_settings={"help_option_names": ["-h", "--help"]})
 profile_app = typer.Typer(help="Manage profiles", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
@@ -27,10 +28,12 @@ rm_app = typer.Typer(help="Debug removal commands", context_settings={"help_opti
 integration_app = typer.Typer(help="Manage profile host integrations", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 image_app = typer.Typer(help="Manage LCP shared images", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 runtime_app = typer.Typer(help="Manage LCP runtime tools", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
+version_lock_app = typer.Typer(help="Inspect the LCP release dependency lock", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 app.add_typer(profile_app, name="profile")
 app.add_typer(integration_app, name="integration")
 app.add_typer(image_app, name="image")
 app.add_typer(runtime_app, name="runtime")
+app.add_typer(version_lock_app, name="version-lock")
 app.add_typer(rm_app, name="rm", hidden=True)
 
 
@@ -513,6 +516,42 @@ def _runtime_list() -> None:
         typer.echo(f"{name}: {tool.package}@{tool.version}")
 
 
+def _version_lock_show() -> None:
+    lock = load_version_lock()
+    typer.echo(f"LCP: {lock.lcpVersion}")
+    typer.echo(f"generated: {lock.generatedAt}")
+    for dependency in lock.dependencies:
+        typer.echo(f"{dependency.name}:")
+        typer.echo(f"  policy: {dependency.policy}")
+        typer.echo(f"  risk: {dependency.risk}")
+        if dependency.package:
+            typer.echo(f"  package: {dependency.package}")
+        if dependency.version:
+            typer.echo(f"  version: {dependency.version}")
+        if dependency.controlled:
+            typer.echo(f"  repo: {dependency.controlled.repo}")
+            typer.echo(f"  tag: {dependency.controlled.tag}")
+            typer.echo(f"  commit: {dependency.controlled.commit}")
+        if dependency.upstream:
+            upstream_ref = dependency.upstream.tag or dependency.upstream.branch or "unknown"
+            typer.echo(f"  upstream: {dependency.upstream.repo}@{upstream_ref}")
+            typer.echo(f"  upstream commit: {dependency.upstream.commit}")
+        typer.echo(f"  patches: {len(dependency.patches)}")
+
+
+def _version_lock_verify() -> None:
+    try:
+        lock = load_version_lock()
+        failures = verify_version_lock(lock)
+    except (OSError, ValueError, ValidationError) as exc:
+        _fail("version lock is invalid", str(exc))
+    if failures:
+        for failure in failures:
+            typer.echo(f"failed: {failure}")
+        raise typer.Exit(1)
+    typer.echo("ok: version_lock")
+
+
 def _runtime_apply(dry_run: bool, yes: bool) -> None:
     store = LcpStore()
     store.init_dirs()
@@ -846,6 +885,16 @@ def runtime_apply(
     yes: bool = typer.Option(False, "--yes", "-y", help="Confirm real build"),
 ) -> None:
     _runtime_apply(dry_run, yes)
+
+
+@version_lock_app.command("show")
+def version_lock_show() -> None:
+    _version_lock_show()
+
+
+@version_lock_app.command("verify")
+def version_lock_verify() -> None:
+    _version_lock_verify()
 
 
 @integration_app.command("list")

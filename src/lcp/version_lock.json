@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "lcpVersion": "0.2.1",
+  "generatedAt": "2026-05-28",
+  "dependencies": [
+    {
+      "name": "feishu-claude-code-bridge",
+      "role": "Feishu/Lark bridge runtime",
+      "risk": "critical",
+      "policy": "planned-controlled-fork",
+      "package": "lark-channel-bridge",
+      "version": "0.1.32",
+      "upstream": {
+        "repo": "https://github.com/zarazhangrui/feishu-claude-code-bridge",
+        "branch": "main",
+        "tag": null,
+        "commit": "bdc844b7115797fd6d2b56f2bdd71491ee1b06bb"
+      },
+      "patches": [],
+      "validation": {
+        "lcpVersion": "0.2.1",
+        "validatedAt": "2026-05-28",
+        "profiles": ["solid"],
+        "commands": [
+          "PYTHONPATH=src pytest",
+          "PYTHONPATH=src python -m lcp.cli profile verify solid --no-run-claude",
+          "PYTHONPATH=src python -m lcp.cli bridge solid bind-lark-cli",
+          "PYTHONPATH=src python -m lcp.cli bridge solid start"
+        ]
+      }
+    },
+    {
+      "name": "lark-cli",
+      "role": "Feishu/Lark bot identity and attachment CLI",
+      "risk": "critical",
+      "policy": "pin-first",
+      "package": "@larksuite/cli",
+      "version": "1.0.41",
+      "patches": [],
+      "validation": {
+        "lcpVersion": "0.2.1",
+        "validatedAt": "2026-05-28",
+        "profiles": ["solid"],
+        "commands": [
+          "LARK_CHANNEL=1 lark-cli auth status --json",
+          "LARK_CHANNEL=1 lark-cli config bind --source lark-channel --identity bot-only --force",
+          "LARK_CHANNEL=1 lark-cli config default-as bot"
+        ]
+      }
+    },
+    {
+      "name": "claude-code",
+      "role": "Claude Code agent runtime",
+      "risk": "critical",
+      "policy": "pin-only",
+      "package": "@anthropic-ai/claude-code",
+      "version": "2.1.150",
+      "patches": []
+    },
+    {
+      "name": "github-cli",
+      "role": "GitHub host integration provider tool",
+      "risk": "medium",
+      "policy": "provider-managed",
+      "package": "gh",
+      "version": "host-synchronized",
+      "patches": []
+    },
+    {
+      "name": "vercel-cli",
+      "role": "Vercel host integration provider tool",
+      "risk": "medium",
+      "policy": "provider-managed",
+      "package": "vercel",
+      "version": "host-synchronized",
+      "patches": []
+    }
+  ]
+}

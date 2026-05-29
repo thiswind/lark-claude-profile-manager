@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add LCP Version Lock file, model, and `lcp version-lock show` / `lcp version-lock verify` commands to record external dependency policy, versions, controlled repo anchors, and release validation state per LCP release.
+- Reject `latest` for critical dependencies and floating tags for controlled fork dependencies during lock verification.
+
 ## 0.2.1 - 2026-05-28
 
 - Verify and repair profile-local `lark-cli` as bot-only/default-bot by default, so managed bridge start/restart and attachment sending use the profile's own Feishu/Lark bot without requiring user OAuth.

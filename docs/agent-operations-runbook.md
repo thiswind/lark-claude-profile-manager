@@ -214,6 +214,35 @@ Important safety rules:
 - Use `grant` again after the host reauthenticates, rotates credentials, upgrades a host CLI whose version should be mirrored in the container, or changes proxy endpoint configuration.
 - If `apply` fails, read `lcp integration status <profile>` before retrying.
 
+## Inspect LCP Version Lock
+
+Every LCP release should have a Version Lock that records external dependency policy, versions, and controlled dependency anchors.
+
+Inspect it before release or dependency work:
+
+```bash
+lcp version-lock show
+```
+
+Verify it before release:
+
+```bash
+lcp version-lock verify
+```
+
+Expected result:
+
+```text
+ok: version_lock
+```
+
+If verification fails:
+
+1. Read the exact failed dependency.
+2. Do not publish a release until the lock and package version agree.
+3. Do not accept `latest` for critical dependencies.
+4. For controlled fork dependencies, require repo, tag, and exact commit SHA.
+
 ## Manage shared base and runtime images
 
 Preview shared image operations before real builds:

@@ -228,6 +228,23 @@ def test_bridge_help_shows_common_actions() -> None:
     assert "Background run" in result.output
 
 
+def test_version_lock_show_lists_locked_dependencies() -> None:
+    result = runner.invoke(cli.app, ["version-lock", "show"])
+
+    assert result.exit_code == 0
+    assert "LCP: 0.2.1" in result.output
+    assert "feishu-claude-code-bridge:" in result.output
+    assert "policy: planned-controlled-fork" in result.output
+    assert "lark-cli:" in result.output
+
+
+def test_version_lock_verify_passes() -> None:
+    result = runner.invoke(cli.app, ["version-lock", "verify"])
+
+    assert result.exit_code == 0
+    assert "ok: version_lock" in result.output
+
+
 def test_rm_container_is_hidden_debug_and_idempotent(monkeypatch, tmp_path: Path) -> None:
     store = make_store(tmp_path)
     FakeAdapter.container = None
