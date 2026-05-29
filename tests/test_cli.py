@@ -234,7 +234,9 @@ def test_version_lock_show_lists_locked_dependencies() -> None:
     assert result.exit_code == 0
     assert "LCP: 0.2.1" in result.output
     assert "feishu-claude-code-bridge:" in result.output
-    assert "policy: planned-controlled-fork" in result.output
+    assert "policy: controlled-fork" in result.output
+    assert "repo: https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2" in result.output
+    assert "tag: lcp-0.2.1" in result.output
     assert "lark-cli:" in result.output
 
 

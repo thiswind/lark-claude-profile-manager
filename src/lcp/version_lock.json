@@ -7,9 +7,14 @@
       "name": "feishu-claude-code-bridge",
       "role": "Feishu/Lark bridge runtime",
       "risk": "critical",
-      "policy": "planned-controlled-fork",
+      "policy": "controlled-fork",
       "package": "lark-channel-bridge",
       "version": "0.1.32",
+      "controlled": {
+        "repo": "https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2",
+        "tag": "lcp-0.2.1",
+        "commit": "bdc844b7115797fd6d2b56f2bdd71491ee1b06bb"
+      },
       "upstream": {
         "repo": "https://github.com/zarazhangrui/feishu-claude-code-bridge",
         "branch": "main",

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add LCP Version Lock file, model, and `lcp version-lock show` / `lcp version-lock verify` commands to record external dependency policy, versions, controlled repo anchors, and release validation state per LCP release.
+- Lock the bridge-class dependency to `thiswind/feishu-claude-code-bridge-lcp-0.2@lcp-0.2.1`, anchored at commit `bdc844b7115797fd6d2b56f2bdd71491ee1b06bb`.
 - Reject `latest` for critical dependencies and floating tags for controlled fork dependencies during lock verification.
 
 ## 0.2.1 - 2026-05-28
