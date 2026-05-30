@@ -2,6 +2,7 @@ import shlex
 
 from .docker_adapter import DockerAdapter, ExecResult
 from .models import Profile
+from .version_lock import dependency_npm_install_spec
 
 
 NPM_CACHE_ARG = "--cache /cache/npm"
@@ -23,10 +24,10 @@ def install_runtime(adapter: DockerAdapter, profile: Profile) -> list[ExecResult
     user_commands = [
         "mkdir -p ~/.npm-global /cache/npm /cache/tmp",
         "npm config set cache /cache/npm --global",
-        f"npm install -g @anthropic-ai/claude-code --include=optional {NPM_CACHE_ARG}",
+        f"npm install -g {shlex.quote(dependency_npm_install_spec('@anthropic-ai/claude-code'))} --include=optional {NPM_CACHE_ARG}",
         CLAUDE_NATIVE_FIXUP,
-        f"npm install -g @larksuite/cli {NPM_CACHE_ARG}",
-        f"npm install -g lark-channel-bridge {NPM_CACHE_ARG}",
+        f"npm install -g {shlex.quote(dependency_npm_install_spec('@larksuite/cli'))} {NPM_CACHE_ARG}",
+        f"npm install -g {shlex.quote(dependency_npm_install_spec('lark-channel-bridge'))} {NPM_CACHE_ARG}",
     ]
     git_identity_command = git_identity_setup_command(profile)
     if git_identity_command:

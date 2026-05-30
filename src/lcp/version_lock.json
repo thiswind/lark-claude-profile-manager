@@ -13,7 +13,7 @@
       "controlled": {
         "repo": "https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2",
         "tag": "lcp-0.2.1",
-        "commit": "bdc844b7115797fd6d2b56f2bdd71491ee1b06bb"
+        "commit": "4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc"
       },
       "upstream": {
         "repo": "https://github.com/zarazhangrui/feishu-claude-code-bridge",

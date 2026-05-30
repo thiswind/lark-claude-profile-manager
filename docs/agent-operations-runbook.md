@@ -242,6 +242,7 @@ If verification fails:
 2. Do not publish a release until the lock and package version agree.
 3. Do not accept `latest` for critical dependencies.
 4. For controlled fork dependencies, require repo, tag, and exact commit SHA.
+5. For bridge-class runtime work, confirm the install source resolves from Version Lock to an exact controlled commit SHA instead of upstream `latest` or an unqualified npm package.
 
 ## Manage shared base and runtime images
 

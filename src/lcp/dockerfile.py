@@ -1,6 +1,9 @@
+import shlex
+
 from .host_user import HostUser
 from .models import UBUNTU_LTS_IMAGE
 from .runtime import RuntimeManifest
+from .version_lock import dependency_npm_install_spec
 
 NODE_MAJOR = 24
 BASE_PACKAGES = " ".join(sorted([
@@ -52,8 +55,8 @@ CMD ["sleep", "infinity"]
 def render_runtime_dockerfile(manifest: RuntimeManifest) -> str:
     installs = []
     for tool in manifest.tools.values():
-        package = tool.package if tool.version == "latest" else f"{tool.package}@{tool.version}"
-        installs.append(package)
+        package = dependency_npm_install_spec(tool.versionLockDependency) if tool.versionLockDependency else tool.package if tool.version == "latest" else f"{tool.package}@{tool.version}"
+        installs.append(shlex.quote(package))
     install_command = "npm install -g " + " ".join(installs) + " --include=optional --cache /cache/npm" if installs else "true"
     return f"""FROM {manifest.baseImage}
 

@@ -72,6 +72,22 @@ def load_version_lock(path: Path = VERSION_LOCK_FILE) -> VersionLock:
     return VersionLock.model_validate_json(path.read_text(encoding="utf-8"))
 
 
+def dependency_npm_install_spec(identifier: str, lock: VersionLock | None = None) -> str:
+    lock = lock or load_version_lock()
+    for dependency in lock.dependencies:
+        if identifier not in {dependency.name, dependency.package}:
+            continue
+        if dependency.controlled:
+            repo = str(dependency.controlled.repo).rstrip("/")
+            return f"git+{repo}.git#{dependency.controlled.commit}"
+        if not dependency.package:
+            raise ValueError(f"{identifier}: dependency has no npm package")
+        if dependency.version and dependency.version != "latest":
+            return f"{dependency.package}@{dependency.version}"
+        return dependency.package
+    raise ValueError(f"{identifier}: dependency not found in version lock")
+
+
 def verify_version_lock(lock: VersionLock | None = None) -> list[str]:
     lock = lock or load_version_lock()
     failures: list[str] = []

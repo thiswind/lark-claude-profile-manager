@@ -219,8 +219,9 @@ lcp version-lock verify
 说明：
 
 - Version Lock 类似 `Gemfile.lock`，但锁定的是 LCP 的运行时集成边界。
-- 对高风险外部依赖，后续会记录 thiswind-controlled repo、tag 和 exact commit SHA。
+- 对高风险外部依赖，记录 thiswind-controlled repo、tag 和 exact commit SHA。
 - `verify` 会检查 lock 版本是否匹配当前 LCP 包版本，并拒绝 critical dependency 使用 `latest`。
+- Runtime 安装会从 Version Lock 解析 bridge-class 依赖，并使用受控仓库的 exact commit SHA 作为 npm Git 安装锚点；`lark-channel-bridge` 不再从浮动 npm 包源直接安装。
 
 ### Shared images and runtime tools
 

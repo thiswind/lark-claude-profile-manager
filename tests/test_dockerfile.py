@@ -14,9 +14,9 @@ def test_base_dockerfile_installs_node_24_and_excludes_authorized_tools() -> Non
 def test_runtime_dockerfile_installs_lcp_runtime_tools() -> None:
     text = render_runtime_dockerfile(default_runtime_manifest())
     assert f"FROM {DEFAULT_BASE_IMAGE}" in text
-    assert "@anthropic-ai/claude-code" in text
-    assert "@larksuite/cli" in text
-    assert "lark-channel-bridge" in text
+    assert "@anthropic-ai/claude-code@2.1.150" in text
+    assert "@larksuite/cli@1.0.41" in text
+    assert "git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git#4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc" in text
 
 
 def test_profile_dockerfile_creates_non_root_user_from_runtime_image() -> None:
