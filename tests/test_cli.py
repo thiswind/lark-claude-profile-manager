@@ -93,7 +93,7 @@ def test_version_option_shows_package_version() -> None:
     result = runner.invoke(cli.app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.output.strip() == "lcp 0.2.1"
+    assert result.output.strip() == "lcp 0.2.2"
 
 
 def test_help_shows_grouped_commands_and_hides_legacy_lifecycle_commands() -> None:
@@ -232,11 +232,11 @@ def test_version_lock_show_lists_locked_dependencies() -> None:
     result = runner.invoke(cli.app, ["version-lock", "show"])
 
     assert result.exit_code == 0
-    assert "LCP: 0.2.1" in result.output
+    assert "LCP: 0.2.2" in result.output
     assert "feishu-claude-code-bridge:" in result.output
     assert "policy: controlled-fork" in result.output
     assert "repo: https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2" in result.output
-    assert "tag: lcp-0.2.1" in result.output
+    assert "tag: lcp-0.2.2" in result.output
     assert "lark-cli:" in result.output
 
 

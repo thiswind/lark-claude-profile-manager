@@ -2,8 +2,10 @@
 
 ## Unreleased
 
+## 0.2.2 - 2026-05-30
+
 - Add LCP Version Lock file, model, and `lcp version-lock show` / `lcp version-lock verify` commands to record external dependency policy, versions, controlled repo anchors, and release validation state per LCP release.
-- Lock the bridge-class dependency to `thiswind/feishu-claude-code-bridge-lcp-0.2@lcp-0.2.1`, anchored at commit `4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc`.
+- Lock the bridge-class dependency to `thiswind/feishu-claude-code-bridge-lcp-0.2@lcp-0.2.2`, anchored at commit `4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc`.
 - Install runtime bridge dependencies from the Version Lock controlled repo/tag instead of resolving `lark-channel-bridge` from a floating npm package source.
 - Reject `latest` for critical dependencies and floating tags for controlled fork dependencies during lock verification.
 

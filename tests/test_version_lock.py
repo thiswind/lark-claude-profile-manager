@@ -7,7 +7,7 @@ from lcp.version_lock import VersionLock, VersionLockEntry, dependency_npm_insta
 def test_load_version_lock_matches_package_version() -> None:
     lock = load_version_lock()
 
-    assert lock.lcpVersion == "0.2.1"
+    assert lock.lcpVersion == "0.2.2"
     assert any(dependency.name == "feishu-claude-code-bridge" for dependency in lock.dependencies)
     assert verify_version_lock(lock) == []
 
@@ -68,7 +68,7 @@ def test_critical_dependency_rejects_latest_version() -> None:
 def test_validation_record_must_match_lock_version() -> None:
     with pytest.raises(ValidationError, match="validation version does not match lock version"):
         VersionLock(
-            lcpVersion="0.2.1",
+            lcpVersion="0.2.2",
             generatedAt="2026-05-28",
             dependencies=[
                 {

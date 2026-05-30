@@ -18,10 +18,10 @@
 
 ## 安装
 
-默认使用 `pip` 从 GitHub 源码安装。建议安装发布标签版本，例如当前版本 `0.2.1`：
+默认使用 `pip` 从 GitHub 源码安装。建议安装发布标签版本，例如当前版本 `0.2.2`：
 
 ```bash
-python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.1'
+python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.2'
 ```
 
 如果希望始终安装当前主分支：
@@ -51,8 +51,8 @@ python -m pip install --user -e .[dev]
 其它安装方式也可以使用，但不是默认推荐路径：
 
 ```bash
-uv tool install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.1'
-pipx install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.1'
+uv tool install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.2'
+pipx install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.2'
 ```
 
 检查安装版本：
@@ -236,8 +236,8 @@ lcp runtime apply --yes
 
 说明：
 
-- `image build-base` 管理 LCP 共享基础镜像，默认 tag 使用 LCP 版本和 Ubuntu LTS 后缀，例如 `lcp/base:0.2.1-ubuntu24.04`。
-- `runtime apply` 构建 LCP runtime 镜像，默认 tag 同样版本化，例如 `lcp/runtime:0.2.1-ubuntu24.04`，不会自动重建现有 profile 容器。
+- `image build-base` 管理 LCP 共享基础镜像，默认 tag 使用 LCP 版本和 Ubuntu LTS 后缀，例如 `lcp/base:0.2.2-ubuntu24.04`。
+- `runtime apply` 构建 LCP runtime 镜像，默认 tag 同样版本化，例如 `lcp/runtime:0.2.2-ubuntu24.04`，不会自动重建现有 profile 容器。
 - 现有容器需要单独执行 `lcp profile rebuild <name> --dry-run`，确认后再 `--yes`。
 - 需要与宿主机认证或版本同步的工具，例如 `gh`、`vercel`，不会预装进 runtime 层，而是在对应 integration apply 时处理。
 

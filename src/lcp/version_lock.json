@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "lcpVersion": "0.2.1",
-  "generatedAt": "2026-05-28",
+  "lcpVersion": "0.2.2",
+  "generatedAt": "2026-05-30",
   "dependencies": [
     {
       "name": "feishu-claude-code-bridge",
@@ -12,7 +12,7 @@
       "version": "0.1.32",
       "controlled": {
         "repo": "https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2",
-        "tag": "lcp-0.2.1",
+        "tag": "lcp-0.2.2",
         "commit": "4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc"
       },
       "upstream": {
@@ -25,7 +25,7 @@
         "LCP-controlled fork patch: add package.json prepare script so npm Git installs build dist artifacts."
       ],
       "validation": {
-        "lcpVersion": "0.2.1",
+        "lcpVersion": "0.2.2",
         "validatedAt": "2026-05-30",
         "profiles": ["solid"],
         "commands": [
@@ -46,8 +46,8 @@
       "version": "1.0.41",
       "patches": [],
       "validation": {
-        "lcpVersion": "0.2.1",
-        "validatedAt": "2026-05-28",
+        "lcpVersion": "0.2.2",
+        "validatedAt": "2026-05-30",
         "profiles": ["solid"],
         "commands": [
           "LARK_CHANNEL=1 lark-cli auth status --json",
