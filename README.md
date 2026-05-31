@@ -87,6 +87,39 @@ C:\Users\Administrator\AppData\Roaming\Python\Python314\Scripts
 python -m pip install --user --upgrade .
 ```
 
+## 新服务器入口：Host Admin Agent
+
+Host Admin Agent 是宿主机级管理口，不是普通 LCP profile。它用于在新机器上建立一个主机级 Claude Code + Feishu/Lark bridge，用来安装、升级、诊断和恢复 LCP。
+
+默认工作区是：
+
+```text
+~/Desktop/Projects/LCP_HOST_ADMIN
+```
+
+安装好 `lcp` 后，先预览主机管理口安装步骤：
+
+```bash
+lcp host-admin bootstrap --dry-run
+```
+
+确认后安装主机管理口运行时：
+
+```bash
+lcp host-admin bootstrap --yes
+```
+
+该命令由 Python 内置逻辑编排，会安装主机 Claude Code、ByteDance Ark Helper、`lark-cli` 和 `lark-channel-bridge`，然后提示用户用 Ark Helper 激活 Claude Code。
+
+激活完成后运行：
+
+```bash
+lcp host-admin bind --from-env
+lcp host-admin start
+```
+
+`bind` 不会绕过用户授权；它只在用户完成 Claude Code 激活并提供/配置 Feishu/Lark bot 信息后，绑定 host-level `lark-cli` 为 bot-only/default bot。
+
 ## 面向宿主机 Claude Code 的运营手册
 
 如果你是一个运行在宿主机上的 Claude Code agent，负责创建、维护、排障和发布 LCP profiles，请先阅读：
@@ -222,37 +255,6 @@ lcp version-lock verify
 - 对高风险外部依赖，记录 thiswind-controlled repo、tag 和 exact commit SHA。
 - `verify` 会检查 lock 版本是否匹配当前 LCP 包版本，并拒绝 critical dependency 使用 `latest`。
 - Runtime 安装会从 Version Lock 解析 bridge-class 依赖，并使用受控仓库的 exact commit SHA 作为 npm Git 安装锚点；`lark-channel-bridge` 不再从浮动 npm 包源直接安装。
-
-### Host Admin Agent
-
-Host Admin Agent 是宿主机级管理口，不是普通 LCP profile。它用于在新机器上建立一个主机级 Claude Code + Feishu/Lark bridge，用来安装、升级、诊断和恢复 LCP。
-
-默认工作区是：
-
-```text
-~/Desktop/Projects/LCP_HOST_ADMIN
-```
-
-第一步先预览：
-
-```bash
-lcp host-admin bootstrap --dry-run
-```
-
-确认后安装主机管理口运行时：
-
-```bash
-lcp host-admin bootstrap --yes
-```
-
-该命令由 Python 内置逻辑编排，会安装主机 Claude Code、ByteDance Ark Helper、`lark-cli` 和 `lark-channel-bridge`，然后提示用户用 Ark Helper 激活 Claude Code。激活完成后运行：
-
-```bash
-lcp host-admin bind --from-env
-lcp host-admin start
-```
-
-`bind` 不会绕过用户授权；它只在用户完成 Claude Code 激活并提供/配置 Feishu/Lark bot 信息后，绑定 host-level `lark-cli` 为 bot-only/default bot。
 
 ### Shared images and runtime tools
 
