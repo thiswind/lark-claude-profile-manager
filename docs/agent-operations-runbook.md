@@ -244,6 +244,44 @@ If verification fails:
 4. For controlled fork dependencies, require repo, tag, and exact commit SHA.
 5. For bridge-class runtime work, confirm the install source resolves from Version Lock to an exact controlled commit SHA instead of upstream `latest` or an unqualified npm package.
 
+## Manage the Host Admin Agent
+
+The Host Admin Agent is the host-level management entry point. It is not an LCP profile and should not be placed under the ordinary profile workspace tree.
+
+Default workspace:
+
+```text
+~/Desktop/Projects/LCP_HOST_ADMIN
+```
+
+Preview setup first:
+
+```bash
+lcp host-admin bootstrap --dry-run
+```
+
+Real setup requires explicit confirmation:
+
+```bash
+lcp host-admin bootstrap --yes
+```
+
+The built-in Python command installs host Claude Code with npm, installs ByteDance Ark Helper, and installs host bridge tools. After that, the user must activate Claude Code through Ark Helper. Do not try to bypass this login step.
+
+After activation and bot configuration, bind and start:
+
+```bash
+lcp host-admin bind --from-env
+lcp host-admin start
+```
+
+Use status/doctor for diagnosis:
+
+```bash
+lcp host-admin status
+lcp host-admin doctor
+```
+
 ## Manage shared base and runtime images
 
 Preview shared image operations before real builds:

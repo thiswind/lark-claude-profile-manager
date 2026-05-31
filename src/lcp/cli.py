@@ -11,6 +11,7 @@ from rich.table import Table
 from . import __version__
 from .bridge import bridge_status, start_bridge, stop_bridge, BRIDGE_LOG
 from .docker_adapter import DockerAdapter
+from .host_admin import bind_host_admin_lark_cli, bootstrap_host_admin, host_admin_paths, load_host_admin_state, start_host_admin_bridge, tool_status
 from .installer import install_runtime
 from .integrations.service import IntegrationService
 from .lark_cli import LARK_CLI_BOT_IDENTITY_CHECK, bind_lark_cli
@@ -26,11 +27,13 @@ app = typer.Typer(help="Manage Lark Claude profile containers", context_settings
 profile_app = typer.Typer(help="Manage profiles", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 rm_app = typer.Typer(help="Debug removal commands", context_settings={"help_option_names": ["-h", "--help"]})
 integration_app = typer.Typer(help="Manage profile host integrations", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
+host_admin_app = typer.Typer(help="Manage the host-level LCP admin agent", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 image_app = typer.Typer(help="Manage LCP shared images", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 runtime_app = typer.Typer(help="Manage LCP runtime tools", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 version_lock_app = typer.Typer(help="Inspect the LCP release dependency lock", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 app.add_typer(profile_app, name="profile")
 app.add_typer(integration_app, name="integration")
+app.add_typer(host_admin_app, name="host-admin")
 app.add_typer(image_app, name="image")
 app.add_typer(runtime_app, name="runtime")
 app.add_typer(version_lock_app, name="version-lock")
@@ -552,6 +555,63 @@ def _version_lock_verify() -> None:
     typer.echo("ok: version_lock")
 
 
+def _host_admin_bootstrap(path: str | None, dry_run: bool, yes: bool) -> None:
+    paths = host_admin_paths(Path(path) if path else None)
+    try:
+        results = bootstrap_host_admin(paths, dry_run=dry_run, yes=yes)
+    except RuntimeError as exc:
+        _fail(str(exc), "rerun with `lcp host-admin bootstrap --dry-run` first, then `--yes`")
+    typer.echo(f"path: {paths.root}")
+    for result in results:
+        status = "dry-run" if dry_run else "ok" if result.exit_code == 0 else "failed"
+        typer.echo(f"{status}: {result.command}")
+        if result.output and result.output != "dry-run":
+            typer.echo(result.output.strip())
+        if result.exit_code != 0:
+            raise typer.Exit(result.exit_code)
+    typer.echo("next: use ByteDance Ark Helper to activate Claude Code, then run `lcp host-admin bind --from-env`")
+
+
+def _host_admin_status(path: str | None) -> None:
+    paths = host_admin_paths(Path(path) if path else None)
+    state = load_host_admin_state(paths)
+    typer.echo(f"path: {paths.root}")
+    typer.echo(f"state: {paths.state_file if state else 'missing'}")
+    for tool in ["claude", "lark-channel-bridge", "lark-cli"]:
+        result = tool_status(tool, paths=paths)
+        status = "ok" if result.exit_code == 0 else "missing"
+        first_line = result.output.strip().splitlines()[0] if result.output.strip() else ""
+        typer.echo(f"{tool}: {status}{f' - {first_line}' if first_line else ''}")
+    if state:
+        typer.echo(f"bot app: {state.botAppId or 'missing'}")
+        typer.echo(f"lark-cli bound: {state.larkCliBound}")
+
+
+def _host_admin_bind(path: str | None, from_env: bool, app_id: str | None) -> None:
+    if not from_env and not app_id:
+        _fail("host-admin bind requires bot configuration", "use `--from-env` or `--app-id <id>` after configuring the bridge bot")
+    paths = host_admin_paths(Path(path) if path else None)
+    results = bind_host_admin_lark_cli(paths, app_id if app_id else None)
+    for result in results:
+        status = "ok" if result.exit_code == 0 else "failed"
+        typer.echo(f"{status}: {result.command}")
+        if result.output.strip():
+            typer.echo(result.output.strip())
+        if result.exit_code != 0:
+            raise typer.Exit(result.exit_code)
+    typer.echo("next: run `lcp host-admin start`")
+
+
+def _host_admin_start(path: str | None) -> None:
+    paths = host_admin_paths(Path(path) if path else None)
+    result = start_host_admin_bridge(paths)
+    if result.exit_code != 0:
+        typer.echo(result.output.strip())
+        raise typer.Exit(result.exit_code)
+    typer.echo(f"bridge started: {result.output.strip()}")
+    typer.echo(f"logs: {paths.logs / 'bridge.log'}")
+
+
 def _runtime_apply(dry_run: bool, yes: bool) -> None:
     store = LcpStore()
     store.init_dirs()
@@ -895,6 +955,39 @@ def version_lock_show() -> None:
 @version_lock_app.command("verify")
 def version_lock_verify() -> None:
     _version_lock_verify()
+
+
+@host_admin_app.command("bootstrap")
+def host_admin_bootstrap(
+    path: str | None = typer.Option(None, help="Host admin workspace path"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview host admin installation without running installers"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm real host admin installation"),
+) -> None:
+    _host_admin_bootstrap(path, dry_run, yes)
+
+
+@host_admin_app.command("status")
+def host_admin_status(path: str | None = typer.Option(None, help="Host admin workspace path")) -> None:
+    _host_admin_status(path)
+
+
+@host_admin_app.command("doctor")
+def host_admin_doctor(path: str | None = typer.Option(None, help="Host admin workspace path")) -> None:
+    _host_admin_status(path)
+
+
+@host_admin_app.command("bind")
+def host_admin_bind(
+    path: str | None = typer.Option(None, help="Host admin workspace path"),
+    from_env: bool = typer.Option(False, "--from-env", help="Read LARK_APP_ID from environment and bind lark-cli to the host bridge"),
+    app_id: str | None = typer.Option(None, "--app-id", help="Host admin bot app ID to record in state"),
+) -> None:
+    _host_admin_bind(path, from_env, app_id)
+
+
+@host_admin_app.command("start")
+def host_admin_start(path: str | None = typer.Option(None, help="Host admin workspace path")) -> None:
+    _host_admin_start(path)
 
 
 @integration_app.command("list")

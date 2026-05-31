@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the first built-in Python `lcp host-admin` commands for host-level admin agent bootstrap, status/doctor, lark-cli binding, and bridge start.
+
 ## 0.2.2 - 2026-05-30
 
 - Add LCP Version Lock file, model, and `lcp version-lock show` / `lcp version-lock verify` commands to record external dependency policy, versions, controlled repo anchors, and release validation state per LCP release.

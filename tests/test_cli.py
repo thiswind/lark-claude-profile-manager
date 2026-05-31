@@ -247,6 +247,23 @@ def test_version_lock_verify_passes() -> None:
     assert "ok: version_lock" in result.output
 
 
+def test_host_admin_bootstrap_dry_run_lists_python_managed_steps(tmp_path: Path) -> None:
+    result = runner.invoke(cli.app, ["host-admin", "bootstrap", "--path", str(tmp_path / "LCP_HOST_ADMIN"), "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "dry-run: npm install -g @anthropic-ai/claude-code" in result.output
+    assert "lf3-static.bytednsdoc.com" in result.output
+    assert "lcp host-admin bind --from-env" in result.output
+    assert not (tmp_path / "LCP_HOST_ADMIN").exists()
+
+
+def test_host_admin_bind_requires_bot_configuration(tmp_path: Path) -> None:
+    result = runner.invoke(cli.app, ["host-admin", "bind", "--path", str(tmp_path / "LCP_HOST_ADMIN")])
+
+    assert result.exit_code == 1
+    assert "host-admin bind requires bot configuration" in result.output
+
+
 def test_rm_container_is_hidden_debug_and_idempotent(monkeypatch, tmp_path: Path) -> None:
     store = make_store(tmp_path)
     FakeAdapter.container = None
