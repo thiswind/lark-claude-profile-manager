@@ -222,6 +222,7 @@ lcp runtime apply --yes
 
 - `image build-base` 管理 LCP 共享基础镜像，默认 tag 使用 LCP 版本和 Ubuntu LTS 后缀，例如 `lcp/base:0.2.1-ubuntu24.04`。
 - `runtime apply` 构建 LCP runtime 镜像，默认 tag 同样版本化，例如 `lcp/runtime:0.2.1-ubuntu24.04`，不会自动重建现有 profile 容器。
+- base/runtime 镜像默认包含常用排障工具，包括 `tree`、`rg`、`jq`、`file`、`ip`、`ss`、`nc`、`dig`、`nslookup` 和 `traceroute`。
 - 现有容器需要单独执行 `lcp profile rebuild <name> --dry-run`，确认后再 `--yes`。
 - 需要与宿主机认证或版本同步的工具，例如 `gh`、`vercel`，不会预装进 runtime 层，而是在对应 integration apply 时处理。
 

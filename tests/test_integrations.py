@@ -8,6 +8,7 @@ from lcp.integrations.models import HostCheck, IntegrationCapabilities, ProfileI
 from lcp.integrations.registry import IntegrationRegistry
 from lcp.integrations.service import IntegrationService
 from lcp.integrations.base import IntegrationProvider
+from lcp.integrations.providers.github import GitHubProvider
 from lcp.models import default_profile
 
 
@@ -106,3 +107,16 @@ def test_integration_apply_dry_run_does_not_recreate(monkeypatch, tmp_path: Path
     assert result.exit_code == 0
     assert "fake: install" in result.output
     assert "fake: verify" in result.output
+
+
+def test_github_install_falls_back_when_exact_apt_version_is_unavailable(tmp_path: Path) -> None:
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    state = profile.integrations.providers.setdefault("github", ProfileIntegrationState())
+    state.desired.hostVersion = "2.92.0"
+
+    commands = GitHubProvider().install_commands(profile)
+
+    assert len(commands) == 1
+    assert "apt-get -o Acquire::Retries=3 install -y gh=2.92.0" in commands[0]
+    assert "exact gh 2.92.0 unavailable from apt" in commands[0]
+    assert "apt-get -o Acquire::Retries=3 install -y gh)" in commands[0]

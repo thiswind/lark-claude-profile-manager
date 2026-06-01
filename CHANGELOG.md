@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add common troubleshooting tools to the base image package set: `file`, `iproute2`, `netcat-openbsd`, `dnsutils`, and `traceroute`.
+- Let GitHub integration installs fall back to the repository default `gh` package when the previously recorded exact host version is no longer available from apt.
+
 ## 0.2.1 - 2026-05-28
 
 - Verify and repair profile-local `lark-cli` as bot-only/default-bot by default, so managed bridge start/restart and attachment sending use the profile's own Feishu/Lark bot without requiring user OAuth.

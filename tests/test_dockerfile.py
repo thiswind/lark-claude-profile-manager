@@ -7,7 +7,8 @@ def test_base_dockerfile_installs_node_24_and_excludes_authorized_tools() -> Non
     text = render_base_dockerfile()
     assert "FROM ubuntu:24.04" in text
     assert "setup_24.x" in text
-    assert " tree " in f" {text} "
+    for package in ["dnsutils", "file", "iproute2", "netcat-openbsd", "traceroute", "tree"]:
+        assert f" {package} " in f" {text} "
     assert " gh " not in f" {text} "
 
 
