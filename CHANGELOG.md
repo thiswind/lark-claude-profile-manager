@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 - 2026-06-01
 
 - Add common troubleshooting tools to the base image package set: `file`, `iproute2`, `netcat-openbsd`, `dnsutils`, and `traceroute`.
 - Let GitHub integration installs fall back to the repository default `gh` package when the previously recorded exact host version is no longer available from apt.
