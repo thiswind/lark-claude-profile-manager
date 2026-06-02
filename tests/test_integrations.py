@@ -5,6 +5,8 @@ from typer.testing import CliRunner
 from lcp import cli
 from lcp.docker_adapter import ExecResult
 from lcp.integrations.models import HostCheck, IntegrationCapabilities, ProfileIntegrationState
+from lcp.integrations.providers.github import GitHubProvider
+from lcp.integrations.providers.vercel import VercelProvider
 from lcp.integrations.registry import IntegrationRegistry
 from lcp.integrations.service import IntegrationService
 from lcp.integrations.base import IntegrationProvider
@@ -106,3 +108,25 @@ def test_integration_apply_dry_run_does_not_recreate(monkeypatch, tmp_path: Path
     assert result.exit_code == 0
     assert "fake: install" in result.output
     assert "fake: verify" in result.output
+
+
+def test_github_install_falls_back_when_exact_version_is_unavailable(tmp_path: Path) -> None:
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    state = profile.integrations.providers.setdefault("github", ProfileIntegrationState())
+    state.desired.hostVersion = "2.92.0"
+
+    commands = GitHubProvider().install_commands(profile)
+
+    assert "install -y gh=2.92.0" in commands[0]
+    assert "exact gh 2.92.0 unavailable from apt" in commands[0]
+    assert "install -y gh))" in commands[0]
+
+
+def test_vercel_verify_uses_token_snapshot_when_present(tmp_path: Path) -> None:
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+
+    commands = VercelProvider().verify_commands(profile)
+
+    assert "lcp-token.json" in commands[0]
+    assert "HOME=\"$tmp\" vercel whoami --token" in commands[0]
+    assert "HOME=\"$tmp\" vercel whoami;" in commands[0]

@@ -3,7 +3,7 @@ import shlex
 from .host_user import HostUser
 from .models import UBUNTU_LTS_IMAGE
 from .runtime import RuntimeManifest
-from .version_lock import dependency_npm_install_spec
+from .version_lock import dependency_npm_install_spec, find_dependency
 
 NODE_MAJOR = 24
 BASE_PACKAGES = " ".join(sorted([
@@ -54,15 +54,33 @@ CMD ["sleep", "infinity"]
 
 def render_runtime_dockerfile(manifest: RuntimeManifest) -> str:
     installs = []
-    for tool in manifest.tools.values():
+    controlled_builds = []
+    for name, tool in manifest.tools.items():
+        dependency = find_dependency(tool.versionLockDependency) if tool.versionLockDependency else None
+        if dependency and dependency.controlled:
+            repo = str(dependency.controlled.repo).rstrip("/")
+            tgz_path = f"/cache/tmp/{name}.tgz"
+            controlled_builds.append(
+                f"git clone {shlex.quote(repo + '.git')} /cache/tmp/{name}-src"
+                f" && cd /cache/tmp/{name}-src"
+                f" && git checkout {shlex.quote(dependency.controlled.commit)}"
+                " && npm install --include=dev --cache /cache/npm"
+                " && npm run build"
+                f" && npm pack --pack-destination /cache/tmp --cache /cache/npm"
+                f" && mv /cache/tmp/{shlex.quote(dependency.package or name)}-*.tgz {shlex.quote(tgz_path)}"
+            )
+            installs.append(tgz_path)
+            continue
         package = dependency_npm_install_spec(tool.versionLockDependency) if tool.versionLockDependency else tool.package if tool.version == "latest" else f"{tool.package}@{tool.version}"
         installs.append(shlex.quote(package))
+    build_command = " && ".join(controlled_builds) if controlled_builds else "true"
     install_command = "npm install -g " + " ".join(installs) + " --include=optional --cache /cache/npm" if installs else "true"
     return f"""FROM {manifest.baseImage}
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN mkdir -p /cache/npm /cache/pnpm /cache/pip /cache/tmp /logs \
+    && {build_command} \
     && {install_command}
 
 RUN if command -v claude >/dev/null 2>&1; then \

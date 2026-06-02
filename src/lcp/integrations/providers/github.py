@@ -71,7 +71,7 @@ class GitHubProvider(IntegrationProvider):
             "sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg",
             "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null",
             "sudo apt-get -o Acquire::Retries=3 update",
-            f"sudo apt-get -o Acquire::Retries=3 install -y gh={version_arg}",
+            f"(sudo apt-get -o Acquire::Retries=3 install -y gh={version_arg} || (echo 'exact gh {version} unavailable from apt; installing repository default gh' && sudo apt-get -o Acquire::Retries=3 install -y gh))",
         ])
         if not reuse_matching:
             return [install]

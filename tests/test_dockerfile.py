@@ -16,7 +16,11 @@ def test_runtime_dockerfile_installs_lcp_runtime_tools() -> None:
     assert f"FROM {DEFAULT_BASE_IMAGE}" in text
     assert "@anthropic-ai/claude-code@2.1.150" in text
     assert "@larksuite/cli@1.0.41" in text
-    assert "git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git#4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc" in text
+    assert "git clone https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git" in text
+    assert "git checkout 4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc" in text
+    assert "npm install --include=dev" in text
+    assert "npm pack --pack-destination /cache/tmp" in text
+    assert "/cache/tmp/lark-channel-bridge.tgz" in text
 
 
 def test_profile_dockerfile_creates_non_root_user_from_runtime_image() -> None:
