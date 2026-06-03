@@ -43,7 +43,7 @@
       "risk": "critical",
       "policy": "pin-first",
       "package": "@larksuite/cli",
-      "version": "1.0.41",
+      "version": "1.0.46",
       "patches": [],
       "validation": {
         "lcpVersion": "0.2.2",
@@ -52,7 +52,9 @@
         "commands": [
           "LARK_CHANNEL=1 lark-cli auth status --json",
           "LARK_CHANNEL=1 lark-cli config bind --source lark-channel --identity bot-only --force",
-          "LARK_CHANNEL=1 lark-cli config default-as bot"
+          "LARK_CHANNEL=1 lark-cli config default-as bot",
+          "LARK_CHANNEL=1 lark-cli config strict-mode bot",
+          "lark-cli im +messages-send --chat-id <profile-chat> --file ./lcp-smoke.txt"
         ]
       }
     },

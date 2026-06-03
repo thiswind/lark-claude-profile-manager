@@ -228,6 +228,9 @@ class DockerAdapter:
                 binds[str(claude_dir)] = {"bind": f"{user_home}/.claude", "mode": "rw"}
             if claude_json.exists():
                 binds[str(claude_json)] = {"bind": f"{user_home}/.claude.json", "mode": "rw"}
+        core_skill_dir = profile_dir / "skills" / "lark-cli-file-send"
+        if core_skill_dir.exists():
+            binds[str(core_skill_dir)] = {"bind": f"{user_home}/.claude/skills/lark-cli-file-send", "mode": "ro"}
         for mount in IntegrationService(self.store).mounts(profile):
             binds[mount.hostPath] = {"bind": mount.containerPath, "mode": mount.mode}
         github_state_exists = "github" in profile.integrations.providers

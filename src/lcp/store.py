@@ -7,6 +7,7 @@ from .config import MachineConfig
 from .models import Profile
 from .paths import default_lcp_home, ensure_dir
 from .runtime import RuntimeManifest, load_runtime_manifest, save_runtime_manifest
+from .skills import ensure_core_skills
 
 
 class LcpStore:
@@ -70,6 +71,7 @@ class LcpStore:
 
     def save_profile(self, profile: Profile) -> None:
         profile_dir = self.ensure_profile_dirs(profile.name)
+        ensure_core_skills(profile_dir, profile)
         data = profile.model_dump(mode="json")
         target = profile_dir / "profile.json"
         tmp = profile_dir / "profile.json.tmp"

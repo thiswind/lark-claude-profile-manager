@@ -2,6 +2,7 @@ import shlex
 
 from .docker_adapter import DockerAdapter, ExecResult
 from .models import Profile
+from .lark_cli_wrapper import LARK_CLI_DEFAULT_CHANNEL_WRAPPER
 from .version_lock import dependency_npm_install_spec
 
 
@@ -27,6 +28,7 @@ def install_runtime(adapter: DockerAdapter, profile: Profile) -> list[ExecResult
         f"npm install -g {shlex.quote(dependency_npm_install_spec('@anthropic-ai/claude-code'))} --include=optional {NPM_CACHE_ARG}",
         CLAUDE_NATIVE_FIXUP,
         f"npm install -g {shlex.quote(dependency_npm_install_spec('@larksuite/cli'))} {NPM_CACHE_ARG}",
+        LARK_CLI_DEFAULT_CHANNEL_WRAPPER,
         f"npm install -g {shlex.quote(dependency_npm_install_spec('lark-channel-bridge'))} {NPM_CACHE_ARG}",
     ]
     git_identity_command = git_identity_setup_command(profile)

@@ -3,6 +3,7 @@ import shlex
 from .host_user import HostUser
 from .models import UBUNTU_LTS_IMAGE
 from .runtime import RuntimeManifest
+from .lark_cli_wrapper import LARK_CLI_DEFAULT_CHANNEL_WRAPPER
 from .version_lock import dependency_npm_install_spec
 
 NODE_MAJOR = 24
@@ -58,12 +59,14 @@ def render_runtime_dockerfile(manifest: RuntimeManifest) -> str:
         package = dependency_npm_install_spec(tool.versionLockDependency) if tool.versionLockDependency else tool.package if tool.version == "latest" else f"{tool.package}@{tool.version}"
         installs.append(shlex.quote(package))
     install_command = "npm install -g " + " ".join(installs) + " --include=optional --cache /cache/npm" if installs else "true"
+    lark_cli_wrapper = LARK_CLI_DEFAULT_CHANNEL_WRAPPER.replace("\n", " ").replace("$", "$$")
     return f"""FROM {manifest.baseImage}
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN mkdir -p /cache/npm /cache/pnpm /cache/pip /cache/tmp /logs \
-    && {install_command}
+    && {install_command} \
+    && {lark_cli_wrapper}
 
 RUN if command -v claude >/dev/null 2>&1; then \
         cd $(npm root -g)/@anthropic-ai/claude-code \

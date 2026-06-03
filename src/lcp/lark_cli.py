@@ -1,12 +1,13 @@
 from .docker_adapter import DockerAdapter, ExecResult
+from .lark_cli_wrapper import LARK_CLI_DEFAULT_CHANNEL_WRAPPER
 from .models import Profile
-
 
 LARK_CLI_BOT_IDENTITY_CHECK = r"""
 test -s "$HOME/.lark-channel/config.json" && \
 test -s "$HOME/.lark-cli/lark-channel/config.json" && \
-(LARK_CHANNEL=1 lark-cli auth status --json >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err || \
- LARK_CHANNEL=1 lark-cli auth status >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err) && \
+(lark-cli auth status --json >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err || \
+ lark-cli auth status >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err) && \
+lark-cli config strict-mode | grep -q 'bot' && \
 node -e '
 const fs = require("fs");
 const home = process.env.HOME;
@@ -58,6 +59,8 @@ if [ ! -s "$HOME/.lark-channel/config.json" ]; then
   exit 2
 fi
 LARK_CHANNEL=1 lark-cli config bind --source lark-channel --identity bot-only --force &&
-LARK_CHANNEL=1 lark-cli config default-as bot
+LARK_CHANNEL=1 lark-cli config default-as bot &&
+LARK_CHANNEL=1 lark-cli config strict-mode bot &&
+{LARK_CLI_DEFAULT_CHANNEL_WRAPPER}
 """.strip()
     return adapter.exec(profile, command)
