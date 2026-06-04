@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "lcpVersion": "0.2.2",
-  "generatedAt": "2026-05-30",
+  "lcpVersion": "0.2.3",
+  "generatedAt": "2026-06-02",
   "dependencies": [
     {
       "name": "feishu-claude-code-bridge",
@@ -25,9 +25,11 @@
         "LCP-controlled fork patch: add package.json prepare script so npm Git installs build dist artifacts."
       ],
       "validation": {
-        "lcpVersion": "0.2.2",
-        "validatedAt": "2026-05-30",
-        "profiles": ["solid"],
+        "lcpVersion": "0.2.3",
+        "validatedAt": "2026-06-02",
+        "profiles": [
+          "solid"
+        ],
         "commands": [
           "PYTHONPATH=src pytest",
           "PYTHONPATH=src python -m lcp.cli version-lock verify",
@@ -43,16 +45,19 @@
       "risk": "critical",
       "policy": "pin-first",
       "package": "@larksuite/cli",
-      "version": "1.0.41",
+      "version": "1.0.46",
       "patches": [],
       "validation": {
-        "lcpVersion": "0.2.2",
-        "validatedAt": "2026-05-30",
-        "profiles": ["solid"],
+        "lcpVersion": "0.2.3",
+        "validatedAt": "2026-06-02",
+        "profiles": [
+          "solid"
+        ],
         "commands": [
-          "LARK_CHANNEL=1 lark-cli auth status --json",
-          "LARK_CHANNEL=1 lark-cli config bind --source lark-channel --identity bot-only --force",
-          "LARK_CHANNEL=1 lark-cli config default-as bot"
+          "lark-cli auth status --json",
+          "lark-cli config bind --source lark-channel --identity bot-only --force",
+          "lark-cli config default-as bot",
+          "lark-cli config strict-mode bot"
         ]
       }
     },

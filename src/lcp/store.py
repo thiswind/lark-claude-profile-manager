@@ -69,7 +69,10 @@ class LcpStore:
         save_runtime_manifest(self.runtime_manifest_file, manifest)
 
     def save_profile(self, profile: Profile) -> None:
+        from .skills import ensure_core_profile_skills
+
         profile_dir = self.ensure_profile_dirs(profile.name)
+        ensure_core_profile_skills(self, profile)
         data = profile.model_dump(mode="json")
         target = profile_dir / "profile.json"
         tmp = profile_dir / "profile.json.tmp"

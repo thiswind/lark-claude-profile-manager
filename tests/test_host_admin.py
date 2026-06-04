@@ -29,7 +29,7 @@ def test_bootstrap_commands_install_host_claude_ark_helper_and_bridge() -> None:
 
     assert "npm install -g @anthropic-ai/claude-code" in commands
     assert any("lf3-static.bytednsdoc.com" in command for command in commands)
-    assert any("@larksuite/cli@1.0.41" in command for command in commands)
+    assert any("@larksuite/cli@1.0.46" in command for command in commands)
     assert any("feishu-claude-code-bridge-lcp-0.2.git#4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc" in command for command in commands)
 
 

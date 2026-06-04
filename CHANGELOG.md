@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+## 0.2.3 - 2026-06-02
+
+- Build controlled runtime npm dependencies by cloning the pinned repo, installing development dependencies, running the package build, packing a local tarball, and installing that tarball into the runtime image.
+- Let GitHub integration installs fall back to the repository default `gh` package when the previously recorded exact host version is no longer available from apt.
+- Support host-local Vercel token snapshots and verify Vercel auth snapshots with a temporary writable `HOME`.
+- Show resolved runtime install specs in `lcp runtime apply --dry-run` and add a remediation hint when `lark_cli_bot_identity` profile verification fails.
 - Add the first built-in Python `lcp host-admin` commands for host-level admin agent bootstrap, status/doctor, lark-cli binding, and bridge start.
+- Pin `@larksuite/cli` to `1.0.46`, wrap plain `lark-cli` so it defaults to profile-local Lark Channel bot identity, enforce strict bot mode, and mount a profile-local `lark-cli-file-send` skill.
+- Add `lcp profile recover` for stale Docker Desktop bind-mount recovery by recreating the container from the existing image without relying on `docker exec`.
+- Show bound bot identity in `lcp profile list/status` and add dry-run-first `profile rename` / `sync-name-from-bot` state rename workflows.
+- Add an opt-in `ssh` host integration for read-only least-privilege SSH/SOFIA access snapshots.
 
 ## 0.2.2 - 2026-05-30
 

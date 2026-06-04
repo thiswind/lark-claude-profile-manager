@@ -1,9 +1,11 @@
+import json
 import shlex
 
 from .host_user import HostUser
+from .lark_cli_wrapper import LARK_CLI_WRAPPER_INSTALL
 from .models import UBUNTU_LTS_IMAGE
 from .runtime import RuntimeManifest
-from .version_lock import dependency_npm_install_spec
+from .version_lock import dependency_npm_install_spec, find_dependency
 
 NODE_MAJOR = 24
 BASE_PACKAGES = " ".join(sorted([
@@ -12,14 +14,18 @@ BASE_PACKAGES = " ".join(sorted([
     "ca-certificates",
     "coreutils",
     "curl",
+    "dnsutils",
+    "file",
     "git",
     "gnupg",
     "htop",
+    "iproute2",
     "iputils-ping",
     "jq",
     "less",
     "lsof",
     "net-tools",
+    "netcat-openbsd",
     "openssh-client",
     "python3",
     "python3-pip",
@@ -27,6 +33,7 @@ BASE_PACKAGES = " ".join(sorted([
     "ripgrep",
     "strace",
     "sudo",
+    "traceroute",
     "tree",
     "unzip",
     "vim-tiny",
@@ -54,15 +61,38 @@ CMD ["sleep", "infinity"]
 
 def render_runtime_dockerfile(manifest: RuntimeManifest) -> str:
     installs = []
-    for tool in manifest.tools.values():
+    preinstall_steps = []
+    for name, tool in manifest.tools.items():
+        dependency = find_dependency(tool.versionLockDependency) if tool.versionLockDependency else None
+        if dependency and dependency.controlled:
+            if not dependency.package:
+                raise ValueError(f"{dependency.name}: controlled dependency has no npm package")
+            source_dir = f"/cache/tmp/{name}-src"
+            package_file = f"/cache/tmp/{name}.tgz"
+            repo = str(dependency.controlled.repo).rstrip("/")
+            package_name = json.dumps(dependency.package)
+            preinstall_steps.append(" && ".join([
+                f"rm -rf {shlex.quote(source_dir)} {shlex.quote(package_file)}",
+                f"git clone {shlex.quote(repo + '.git')} {shlex.quote(source_dir)}",
+                f"cd {shlex.quote(source_dir)}",
+                f"git checkout {shlex.quote(dependency.controlled.commit)}",
+                "npm install --include=dev --cache /cache/npm",
+                "npm run build",
+                f"npm pack --pack-destination /cache/tmp --cache /cache/npm --json | node -e 'let d=\"\"; process.stdin.on(\"data\", c => d += c); process.stdin.on(\"end\", () => {{ const p = JSON.parse(d)[0]; if (!p || p.name !== {package_name}) process.exit(1); process.stdout.write(p.filename); }})' > /cache/tmp/{name}.pack",
+                f"mv /cache/tmp/$(cat /cache/tmp/{name}.pack) {shlex.quote(package_file)}",
+            ]))
+            installs.append(package_file)
+            continue
         package = dependency_npm_install_spec(tool.versionLockDependency) if tool.versionLockDependency else tool.package if tool.version == "latest" else f"{tool.package}@{tool.version}"
         installs.append(shlex.quote(package))
+    preinstall_command = " && ".join(preinstall_steps) if preinstall_steps else "true"
     install_command = "npm install -g " + " ".join(installs) + " --include=optional --cache /cache/npm" if installs else "true"
     return f"""FROM {manifest.baseImage}
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN mkdir -p /cache/npm /cache/pnpm /cache/pip /cache/tmp /logs \
+    && {preinstall_command} \
     && {install_command}
 
 RUN if command -v claude >/dev/null 2>&1; then \
@@ -71,6 +101,8 @@ RUN if command -v claude >/dev/null 2>&1; then \
         && if [ -n "$pkg" ]; then npm install "$pkg" --cache /cache/npm; fi \
         && node install.cjs; \
     fi
+
+RUN bash -lc {shlex.quote(LARK_CLI_WRAPPER_INSTALL)}
 
 CMD ["sleep", "infinity"]
 """

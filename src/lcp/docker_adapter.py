@@ -10,6 +10,7 @@ from docker.models.containers import Container
 from .dockerfile import render_base_dockerfile, render_profile_dockerfile, render_runtime_dockerfile
 from .integrations.service import IntegrationService
 from .models import Profile, UBUNTU_LTS_IMAGE
+from .skills import lark_cli_file_send_skill_dir
 from .store import LcpStore
 
 
@@ -220,6 +221,9 @@ class DockerAdapter:
             str(self.store.cache_dir / "pip"): {"bind": "/cache/pip", "mode": "rw"},
             str(self.store.cache_dir / "tmp"): {"bind": "/cache/tmp", "mode": "rw"},
         }
+        skill_dir = lark_cli_file_send_skill_dir(self.store, profile)
+        if skill_dir.exists():
+            binds[str(skill_dir)] = {"bind": f"{user_home}/.claude/skills/lark-cli-file-send", "mode": "ro"}
         claude = profile.mounts.claude
         if claude.shareConfig:
             claude_dir = Path(claude.hostClaudeDir)

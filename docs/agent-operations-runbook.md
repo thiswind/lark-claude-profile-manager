@@ -132,8 +132,9 @@ Host integrations grant one profile access to selected host tool credentials wit
 Built-in providers:
 
 - `git` configures the host Git identity inside the profile container.
-- `github` copies host GitHub CLI auth into a profile-local snapshot, mounts it read-only, and installs or upgrades container `gh` to the host `gh` version during apply.
+- `github` copies host GitHub CLI auth into a profile-local snapshot, mounts it read-only, and tries to install or upgrade container `gh` to the recorded host version during apply. If that exact apt version is unavailable, LCP falls back to the GitHub CLI repository default package.
 - `proxy` writes explicitly granted HTTP, HTTPS, and SOCKS proxy settings into the profile container and mounts a profile-local Claude Code proxy skill read-only. It must not rely on hardcoded host proxy endpoints.
+- `ssh` copies a least-privilege SSH snapshot into profile state and mounts it read-only, for SOFIA or other SSH-based workflows. It must not copy the entire host `~/.ssh` by default.
 - `vercel` installs the host-matching Vercel CLI version in the container and mounts copied Vercel auth read-only.
 
 Check host readiness before granting:
@@ -149,6 +150,7 @@ Grant integrations one provider at a time:
 lcp integration grant <profile> git
 lcp integration grant <profile> github
 lcp integration grant <profile> vercel
+lcp integration grant <profile> ssh --config key=id_sofia --config includePrivateKeys=true
 LCP_PROXY_HTTP='http://proxy.example:8080' LCP_PROXY_SOCKS5='socks5h://proxy.example:1080' lcp integration grant <profile> proxy --from-env
 ```
 
@@ -210,9 +212,58 @@ Important safety rules:
 - Do not manually edit `profile.json` to grant or revoke providers.
 - Do not manually mount host credential directories into Docker containers.
 - Do not write host-local proxy addresses into source, docs, defaults, or tests. Proxy endpoints belong in explicit grant-time environment variables or `--config` values.
+- Do not grant `ssh` private keys without an explicit `key=<path-or-name>` and user intent. The default SSH grant should stay config/known-hosts only.
 - Treat proxy URLs as sensitive when they contain credentials; LCP redacts provider output, but operators should still avoid pasting raw proxy URLs into chat or logs.
 - Use `grant` again after the host reauthenticates, rotates credentials, upgrades a host CLI whose version should be mirrored in the container, or changes proxy endpoint configuration.
 - If `apply` fails, read `lcp integration status <profile>` before retrying.
+
+## Recover stale profile containers
+
+Use this when Docker Desktop or WSL bind mounts are stale and a profile container cannot start or cannot be reached with `docker exec`.
+
+Do not diagnose this by entering the broken container. The recovery path is host-side only.
+
+Safe sequence:
+
+```bash
+lcp profile recover <profile> --dry-run
+```
+
+Review the preserved host paths and planned actions. If the user wants to proceed:
+
+```bash
+lcp profile recover <profile> --yes
+```
+
+After recovery:
+
+```bash
+lcp profile verify <profile> --no-run-claude
+lcp bridge <profile> start
+```
+
+If verification fails, read the failed check output before rebuilding or removing anything else.
+
+## Align profile names with bot identity
+
+`lcp profile list` and `lcp profile status <profile>` show the bound bot identity when profile-local Lark config is available.
+
+To rename a profile from its bound bot identity, always preview first:
+
+```bash
+lcp profile sync-name-from-bot <profile> --dry-run
+```
+
+Only apply when no current container exists for the old profile name. If a container exists, LCP refuses the real rename to avoid state/container mismatch.
+
+Manual target names use the same dry-run-first flow:
+
+```bash
+lcp profile rename <profile> <new-name> --dry-run
+lcp profile rename <profile> <new-name> --yes
+```
+
+Do not manually move `~/.lcp/profiles/<profile>` directories.
 
 ## Inspect LCP Version Lock
 
@@ -302,11 +353,17 @@ lcp runtime apply --yes
 Default shared image tags are versioned with the LCP version and Ubuntu LTS suffix, for example:
 
 ```text
-lcp/base:0.2.0-ubuntu24.04
-lcp/runtime:0.2.0-ubuntu24.04
+lcp/base:0.2.3-ubuntu24.04
+lcp/runtime:0.2.3-ubuntu24.04
 ```
 
-Building shared images does not recreate existing profile containers. Use profile rebuild after reviewing its dry-run output.
+Current base/runtime images include common troubleshooting tools:
+
+```text
+tree, rg, jq, file, ip, ss, nc, dig, nslookup, traceroute
+```
+
+Building shared images does not recreate existing profile containers. Use profile rebuild after reviewing its dry-run output. If an existing profile container does not have the current troubleshooting tools, rebuild that profile after reviewing the dry-run output.
 
 ## Rebuild profile containers safely
 

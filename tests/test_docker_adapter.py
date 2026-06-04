@@ -118,6 +118,19 @@ def test_create_mounts_github_cli_config_when_present(tmp_path: Path) -> None:
     assert client.containers.created["volumes"][str(gh_dir)] == {"bind": "/home/thiswind/.config/gh", "mode": "rw"}
 
 
+def test_create_mounts_lark_cli_file_send_skill_readonly(tmp_path: Path) -> None:
+    client = FakeClient()
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    store.save_profile(profile)
+    adapter = DockerAdapter(store, client)
+
+    adapter.create_profile_container(profile)
+
+    skill_dir = store.profile_dir("project1") / "skills" / "lark-cli-file-send"
+    assert client.containers.created["volumes"][str(skill_dir)] == {"bind": "/home/thiswind/.claude/skills/lark-cli-file-send", "mode": "ro"}
+
+
 def test_create_sets_restart_policy(tmp_path: Path) -> None:
     client = FakeClient()
     store = LcpStore(tmp_path / ".lcp")

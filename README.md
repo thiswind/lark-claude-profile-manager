@@ -18,10 +18,10 @@
 
 ## 安装
 
-默认使用 `pip` 从 GitHub 源码安装。建议安装发布标签版本，例如当前版本 `0.2.2`：
+默认使用 `pip` 从 GitHub 源码安装。建议安装发布标签版本，例如当前版本 `0.2.3`：
 
 ```bash
-python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.2'
+python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.3'
 ```
 
 如果希望始终安装当前主分支：
@@ -51,8 +51,8 @@ python -m pip install --user -e .[dev]
 其它安装方式也可以使用，但不是默认推荐路径：
 
 ```bash
-uv tool install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.2'
-pipx install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.2'
+uv tool install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.3'
+pipx install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.3'
 ```
 
 检查安装版本：
@@ -191,6 +191,12 @@ lcp profile list
 lcp profile status <name>
 lcp profile shell <name>
 lcp profile verify <name>
+lcp profile recover <name> --dry-run
+lcp profile recover <name> --yes
+lcp profile rename <name> <new-name> --dry-run
+lcp profile rename <name> <new-name> --yes
+lcp profile sync-name-from-bot <name> --dry-run
+lcp profile sync-name-from-bot <name> --yes
 lcp profile rebuild <name> --dry-run
 lcp profile rebuild <name> --yes
 lcp profile rebuild --all --dry-run
@@ -234,6 +240,24 @@ lcp profile rebuild --all --yes
 - 如果原 bridge 正在运行，重建后会尝试恢复 bridge。
 - 确认新容器健康后，可用 `lcp profile cleanup-rollbacks <name> --dry-run` 预览并用 `--yes` 清理旧 rollback 容器；批量清理同样支持 `--all`。
 
+如果 Docker Desktop / WSL bind mount 进入陈旧状态，容器无法启动且 `docker exec` 不可用，可用 recovery 流程重建容器挂载而不进入旧容器：
+
+```bash
+lcp profile recover <name> --dry-run
+lcp profile recover <name> --yes
+```
+
+`recover` 会保留 profile state、bridge state、`lark-cli` state、logs、cache 和 workspace，只删除并按现有镜像重建容器；它不运行容器内校验，恢复后建议再执行 `lcp profile verify <name> --no-run-claude`。
+
+`profile list` / `profile status` 会显示当前绑定 bot。需要让 profile 名称与 bot identity 对齐时，先预览再确认：
+
+```bash
+lcp profile sync-name-from-bot <name> --dry-run
+lcp profile sync-name-from-bot <name> --yes
+```
+
+rename 只修改 profile state 和派生的 container/image/workspace 名称；如果旧容器仍存在，真实 rename 会拒绝执行，避免状态和 Docker 容器错配。
+
 删除 profile 时跳过确认：
 
 ```bash
@@ -269,8 +293,9 @@ lcp runtime apply --yes
 
 说明：
 
-- `image build-base` 管理 LCP 共享基础镜像，默认 tag 使用 LCP 版本和 Ubuntu LTS 后缀，例如 `lcp/base:0.2.2-ubuntu24.04`。
-- `runtime apply` 构建 LCP runtime 镜像，默认 tag 同样版本化，例如 `lcp/runtime:0.2.2-ubuntu24.04`，不会自动重建现有 profile 容器。
+- `image build-base` 管理 LCP 共享基础镜像，默认 tag 使用 LCP 版本和 Ubuntu LTS 后缀，例如 `lcp/base:0.2.3-ubuntu24.04`。
+- `runtime apply` 构建 LCP runtime 镜像，默认 tag 同样版本化，例如 `lcp/runtime:0.2.3-ubuntu24.04`，不会自动重建现有 profile 容器。
+- base/runtime 镜像默认包含常用排障工具，包括 `tree`、`rg`、`jq`、`file`、`ip`、`ss`、`nc`、`dig`、`nslookup` 和 `traceroute`。
 - 现有容器需要单独执行 `lcp profile rebuild <name> --dry-run`，确认后再 `--yes`。
 - 需要与宿主机认证或版本同步的工具，例如 `gh`、`vercel`，不会预装进 runtime 层，而是在对应 integration apply 时处理。
 
@@ -325,8 +350,9 @@ lcp bridge <name> secrets list
 LCP 可以把宿主机上的部分工具认证安全地授予某个 profile。当前内置 provider：
 
 - `git`：把宿主机 Git identity 配置到容器内。
-- `github`：把宿主机 GitHub CLI 认证复制为 profile-local snapshot，以只读方式挂载到容器内，并在 apply 时把容器内 `gh` 安装/升级到宿主机版本。
+- `github`：把宿主机 GitHub CLI 认证复制为 profile-local snapshot，以只读方式挂载到容器内，并在 apply 时优先把容器内 `gh` 安装/升级到授权时记录的宿主机版本；如果该精确 apt 版本不可用，则回退安装 GitHub CLI 仓库默认版本。
 - `proxy`：把显式提供的 HTTP、HTTPS、SOCKS 代理配置写入容器，并把 profile-local Claude Code proxy skill 只读挂载进容器。
+- `ssh`：把宿主机 SSH 配置按最小权限复制成 profile-local snapshot，并以只读方式挂载到容器内，适合 SOFIA 等需要 SSH 的 profile。
 - `vercel`：在容器内安装与宿主机匹配的 Vercel CLI 版本，并以只读 snapshot 共享 Vercel 认证。
 
 查看可用 provider 和宿主机就绪状态：
@@ -342,6 +368,7 @@ lcp integration doctor <provider>
 lcp integration grant <profile> git
 lcp integration grant <profile> github
 lcp integration grant <profile> vercel
+lcp integration grant <profile> ssh --config key=id_sofia --config includePrivateKeys=true
 LCP_PROXY_HTTP='http://proxy.example:8080' LCP_PROXY_SOCKS5='socks5h://proxy.example:1080' lcp integration grant <profile> proxy --from-env
 lcp integration apply <profile> --dry-run
 lcp integration apply <profile> --yes
@@ -363,6 +390,7 @@ lcp integration apply <profile> --yes
 - `proxy` 只从显式 `--from-env` 或 `--config key=value` 读取代理地址；LCP 不内置任何宿主机特定代理端点。`--from-env` 可用变量包括 `LCP_PROXY_HTTP`、`LCP_PROXY_HTTPS`、`LCP_PROXY_SOCKS5`、`LCP_PROXY_NO_PROXY`。
 - `proxy` apply 会写入 `/etc/profile.d/lcp-proxy.sh`、apt/npm/pip 配置，并把 `~/.lcp/profiles/<profile>/skills/lcp-proxy-networking/` 只读挂载到容器内 `~/.claude/skills/lcp-proxy-networking/`。
 - `proxy` provider 会在错误信息和 verbose apply 输出中隐藏代理 URL 凭据。
+- `ssh` 默认只复制 `config`、`known_hosts` 等非私钥文件；如果需要私钥，必须显式指定 `--config key=<path-or-name> --config includePrivateKeys=true`，不会复制整个 `~/.ssh`。
 - 默认 `lcp integration verify <profile> proxy` 只检查容器内代理配置；需要实际外网连通性探测时，显式运行 `lcp integration verify <profile> proxy --external`。
 - `apply` 可能会重建容器以应用挂载变化；重建后会自动恢复基础 runtime 工具，再执行 provider 安装、配置和验证。
 - `--verbose` 会显示安装和配置步骤；`--reuse-matching` 会在 provider 支持时复用容器内已匹配的 CLI 版本。
