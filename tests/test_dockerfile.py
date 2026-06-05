@@ -23,6 +23,10 @@ def test_runtime_dockerfile_installs_lcp_runtime_tools() -> None:
     assert "npm install --include=dev" in text
     assert "npm run build" in text
     assert "npm pack --pack-destination /cache/tmp" in text
+    assert "/cache/tmp/lark-channel-bridge.pack.out" in text
+    assert "lastIndexOf" in text
+    assert "text.indexOf" in text
+    assert "missing npm pack JSON array" in text
     assert "/cache/tmp/lark-channel-bridge.tgz" in text
     assert 'RUN ["bash", "-lc", "set -eu\\n' in text
     assert 'prefix=\\"${NPM_CONFIG_PREFIX:-$HOME/.npm-global}\\"' in text

@@ -71,14 +71,25 @@ def render_runtime_dockerfile(manifest: RuntimeManifest) -> str:
             package_file = f"/cache/tmp/{name}.tgz"
             repo = str(dependency.controlled.repo).rstrip("/")
             package_name = json.dumps(dependency.package)
+            pack_output = f"/cache/tmp/{name}.pack.out"
+            pack_parser = "".join([
+                "const fs=require('fs');",
+                "const text=fs.readFileSync(process.argv[1],'utf8');",
+                "const start=text.lastIndexOf('\\n[')>=0?text.lastIndexOf('\\n[')+1:text.indexOf('[');",
+                "if(start<0){throw new Error('missing npm pack JSON array');}",
+                "const p=JSON.parse(text.slice(start).trim())[0];",
+                f"if(!p||p.name!=={package_name}){{process.exit(1);}}",
+                "process.stdout.write(p.filename);",
+            ])
             preinstall_steps.append(" && ".join([
-                f"rm -rf {shlex.quote(source_dir)} {shlex.quote(package_file)}",
+                f"rm -rf {shlex.quote(source_dir)} {shlex.quote(package_file)} {shlex.quote(pack_output)}",
                 f"git clone {shlex.quote(repo + '.git')} {shlex.quote(source_dir)}",
                 f"cd {shlex.quote(source_dir)}",
                 f"git checkout {shlex.quote(dependency.controlled.commit)}",
                 "npm install --include=dev --cache /cache/npm",
                 "npm run build",
-                f"npm pack --pack-destination /cache/tmp --cache /cache/npm --json | node -e 'let d=\"\"; process.stdin.on(\"data\", c => d += c); process.stdin.on(\"end\", () => {{ const p = JSON.parse(d)[0]; if (!p || p.name !== {package_name}) process.exit(1); process.stdout.write(p.filename); }})' > /cache/tmp/{name}.pack",
+                f"npm pack --pack-destination /cache/tmp --cache /cache/npm --json > {shlex.quote(pack_output)}",
+                f"node -e {shlex.quote(pack_parser)} {shlex.quote(pack_output)} > /cache/tmp/{name}.pack",
                 f"mv /cache/tmp/$(cat /cache/tmp/{name}.pack) {shlex.quote(package_file)}",
             ]))
             installs.append(package_file)
