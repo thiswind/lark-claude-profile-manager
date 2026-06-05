@@ -24,6 +24,9 @@ def test_runtime_dockerfile_installs_lcp_runtime_tools() -> None:
     assert "npm run build" in text
     assert "npm pack --pack-destination /cache/tmp" in text
     assert "/cache/tmp/lark-channel-bridge.tgz" in text
+    assert 'RUN ["bash", "-lc", "set -eu\\n' in text
+    assert 'prefix=\\"${NPM_CONFIG_PREFIX:-$HOME/.npm-global}\\"' in text
+    assert '\nprefix="${NPM_CONFIG_PREFIX:-$HOME/.npm-global}"' not in text
 
 
 def test_profile_dockerfile_creates_non_root_user_from_runtime_image() -> None:

@@ -102,7 +102,7 @@ RUN if command -v claude >/dev/null 2>&1; then \
         && node install.cjs; \
     fi
 
-RUN bash -lc {shlex.quote(LARK_CLI_WRAPPER_INSTALL)}
+RUN {json.dumps(["bash", "-lc", LARK_CLI_WRAPPER_INSTALL])}
 
 CMD ["sleep", "infinity"]
 """
