@@ -20,6 +20,53 @@ def test_profile_bot_identity_reads_lark_channel_config(tmp_path) -> None:
     assert profile_name_from_bot(identity) == "research-bot"
 
 
+def test_profile_bot_identity_reads_real_lark_cli_apps_list_config(tmp_path) -> None:
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    store.save_profile(profile)
+    config = store.profile_dir("project1") / "lark-cli" / "lark-channel" / "config.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        json.dumps(
+            {
+                "apps": [
+                    {
+                        "appId": "cli_real",
+                        "appSecret": {"source": "keychain", "id": "appsecret:cli_real"},
+                        "brand": "feishu",
+                        "lang": "zh",
+                        "defaultAs": "bot",
+                        "strictMode": "bot",
+                        "users": None,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    identity = profile_bot_identity(store, profile)
+
+    assert identity.appId == "cli_real"
+    assert identity.name is None
+    assert identity.label == "cli_real"
+    assert profile_name_from_bot(identity) == "cli_real"
+
+
+def test_profile_bot_identity_reads_apps_dict_config(tmp_path) -> None:
+    store = LcpStore(tmp_path / ".lcp")
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    store.save_profile(profile)
+    config = store.profile_dir("project1") / "lark-cli" / "lark-channel" / "config.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(json.dumps({"apps": {"cli_123": {"appId": "cli_123", "appName": "Dict Bot"}}}), encoding="utf-8")
+
+    identity = profile_bot_identity(store, profile)
+
+    assert identity.appId == "cli_123"
+    assert identity.name == "Dict Bot"
+
+
 def test_renamed_profile_updates_names_and_workspace(tmp_path) -> None:
     profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
 

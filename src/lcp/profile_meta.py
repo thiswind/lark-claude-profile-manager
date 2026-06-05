@@ -20,6 +20,22 @@ class BotIdentity(BaseModel):
         return self.name or self.appId or "-"
 
 
+def _first_app(data) -> dict:
+    if not isinstance(data, dict):
+        return {}
+    app = data.get("accounts", {}).get("app", {})
+    if isinstance(app, dict) and app:
+        return app
+    apps = data.get("apps")
+    if isinstance(apps, dict):
+        first = next(iter(apps.values()), {})
+        return first if isinstance(first, dict) else {}
+    if isinstance(apps, list) and apps:
+        first = apps[0]
+        return first if isinstance(first, dict) else {}
+    return {}
+
+
 def profile_bot_identity(store: LcpStore, profile: Profile) -> BotIdentity:
     bridge_config = store.profile_dir(profile.name) / "lark-channel" / "config.json"
     cli_config = store.profile_dir(profile.name) / "lark-cli" / "lark-channel" / "config.json"
@@ -32,9 +48,7 @@ def profile_bot_identity(store: LcpStore, profile: Profile) -> BotIdentity:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        app = data.get("accounts", {}).get("app", {}) if isinstance(data, dict) else {}
-        if not app and isinstance(data, dict):
-            app = next(iter((data.get("apps") or {}).values()), {}) if data.get("apps") else {}
+        app = _first_app(data)
         app_id = app_id or app.get("id") or app.get("appId")
         name = name or app.get("name") or app.get("appName") or app.get("botName")
     return BotIdentity(appId=app_id, name=name)

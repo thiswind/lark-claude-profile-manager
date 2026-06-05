@@ -20,7 +20,11 @@ def test_lark_cli_wrapper_defaults_plain_cli_to_lark_channel() -> None:
 
 def test_lark_cli_bot_identity_check_uses_plain_wrapped_lark_cli() -> None:
     assert "grep -q 'LCP managed lark-cli wrapper'" in LARK_CLI_BOT_IDENTITY_CHECK
-    assert "lark-cli auth status --json" in LARK_CLI_BOT_IDENTITY_CHECK
+    json_status = "lark-cli auth status --json >/tmp/lcp-lark-cli-auth-status.out"
+    plain_status = "lark-cli auth status >/tmp/lcp-lark-cli-auth-status.out"
+    assert json_status in LARK_CLI_BOT_IDENTITY_CHECK
+    assert plain_status in LARK_CLI_BOT_IDENTITY_CHECK
+    assert LARK_CLI_BOT_IDENTITY_CHECK.index(json_status) < LARK_CLI_BOT_IDENTITY_CHECK.index(plain_status)
     assert "LARK_CHANNEL=1 lark-cli auth status" not in LARK_CLI_BOT_IDENTITY_CHECK
 
 
