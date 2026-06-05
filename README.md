@@ -249,7 +249,9 @@ lcp profile recover <name> --yes
 
 `recover` 会保留 profile state、bridge state、`lark-cli` state、logs、cache 和 workspace，只删除并按现有镜像重建容器；它不运行容器内校验，恢复后建议再执行 `lcp profile verify <name> --no-run-claude`。
 
-`profile list` / `profile status` 会显示当前绑定 bot。需要让 profile 名称与 bot identity 对齐时，先预览再确认：
+`profile list` / `profile status` 会显示当前绑定 bot。LCP 会兼容旧 profile 中真实 `lark-cli` 配置的多种结构，包括 `accounts.app`、`apps` 字典以及 `apps` 列表；无法识别时只显示 `-`，不应影响 list/status 基础操作。
+
+需要让 profile 名称与 bot identity 对齐时，先预览再确认：
 
 ```bash
 lcp profile sync-name-from-bot <name> --dry-run

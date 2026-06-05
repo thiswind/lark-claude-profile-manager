@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix profile bot metadata parsing for real profile-local `lark-cli` configs where `apps` is stored as a list, preventing `lcp profile list/status` crashes after upgrading existing profiles.
+
 ## 0.2.3 - 2026-06-02
 
 - Build controlled runtime npm dependencies by cloning the pinned repo, installing development dependencies, running the package build, packing a local tarball, and installing that tarball into the runtime image.
