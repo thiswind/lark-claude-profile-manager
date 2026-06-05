@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.5 - 2026-06-06
+
 - Ensure rebuilt/recreated profile containers repair user-owned home parent directories before user-space tools run, preventing read-only integration mounts from leaving `.local` parents owned by root.
 
 ## 0.2.4 - 2026-06-05

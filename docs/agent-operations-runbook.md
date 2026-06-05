@@ -353,8 +353,8 @@ lcp runtime apply --yes
 Default shared image tags are versioned with the LCP version and Ubuntu LTS suffix, for example:
 
 ```text
-lcp/base:0.2.4-ubuntu24.04
-lcp/runtime:0.2.4-ubuntu24.04
+lcp/base:0.2.5-ubuntu24.04
+lcp/runtime:0.2.5-ubuntu24.04
 ```
 
 Current base/runtime images include common troubleshooting tools:
