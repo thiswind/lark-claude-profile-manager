@@ -2,7 +2,13 @@
 
 ## Unreleased
 
+## 0.2.4 - 2026-06-05
+
 - Fix profile bot metadata parsing for real profile-local `lark-cli` configs where `apps` is stored as a list, preventing `lcp profile list/status` crashes after upgrading existing profiles.
+- Migrate legacy sample `lark-cli` wrapper layouts safely by routing managed wrappers to the preserved real `lark-cli.bin` target.
+- Make `profile verify` use enabled git integration desired identity as the expected git identity and print a targeted reapply hint when container git config drifts.
+- Render the runtime Dockerfile `lark-cli` wrapper installer in Docker exec form so multiline shell scripts do not become invalid Dockerfile instructions.
+- Parse noisy `npm pack --json` output from controlled dependency builds by extracting the actual JSON array after lifecycle/build logs.
 
 ## 0.2.3 - 2026-06-02
 
