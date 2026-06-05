@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Ensure rebuilt/recreated profile containers repair user-owned home parent directories before user-space tools run, preventing read-only integration mounts from leaving `.local` parents owned by root.
+
 ## 0.2.4 - 2026-06-05
 
 - Fix profile bot metadata parsing for real profile-local `lark-cli` configs where `apps` is stored as a list, preventing `lcp profile list/status` crashes after upgrading existing profiles.

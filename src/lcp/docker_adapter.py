@@ -140,7 +140,15 @@ class DockerAdapter:
     def start(self, profile: Profile) -> None:
         container = self.get_container(profile)
         container.start()
+        self.ensure_home_parent_dirs(profile)
         self.ensure_compat_symlinks(profile)
+
+    def ensure_home_parent_dirs(self, profile: Profile) -> None:
+        user = profile.container.user
+        home = shlex.quote(user.home)
+        result = self.exec_root(profile, f"mkdir -p {home}/.local/share {home}/.config && chown {user.uid}:{user.gid} {home}/.local {home}/.local/share {home}/.config")
+        if result.exit_code != 0:
+            raise RuntimeError(result.output)
 
     def ensure_compat_symlinks(self, profile: Profile) -> None:
         links = profile.mounts.desktop.compatSymlinks

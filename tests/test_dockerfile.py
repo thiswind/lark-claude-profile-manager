@@ -38,5 +38,8 @@ def test_profile_dockerfile_creates_non_root_user_from_runtime_image() -> None:
     assert "FROM lcp/runtime:test" in text
     assert "useradd --uid 1000 --gid 1000" in text
     assert "ENV HOME=/home/thiswind" in text
+    assert "/home/thiswind/.local/share" in text
+    assert "/home/thiswind/.config" in text
+    assert "chown -R 1000:1000 /home/thiswind /cache /logs" in text
     assert "USER 1000:1000" in text
     assert "WORKDIR /home/thiswind" in text

@@ -14,6 +14,9 @@ class FakeContainer:
     name = "lcp-project1"
     status = "running"
 
+    def __init__(self):
+        self.exec_calls = []
+
     def start(self):
         self.status = "running"
 
@@ -25,6 +28,7 @@ class FakeContainer:
     def exec_run(self, command, stdout=True, stderr=True, environment=None, workdir=None, user=None):
         self.exec_command = command
         self.exec_user = user
+        self.exec_calls.append({"command": command, "user": user})
         return type("ExecRunResult", (), {"exit_code": 0, "output": b""})()
 
 
@@ -90,7 +94,7 @@ def test_load_image_reads_tar(tmp_path: Path) -> None:
     assert client.images.loaded == b"image-data"
 
 
-def test_start_creates_compat_symlinks(tmp_path: Path) -> None:
+def test_start_repairs_home_parent_dirs_and_creates_compat_symlinks(tmp_path: Path) -> None:
     client = FakeClient()
     store = LcpStore(tmp_path / ".lcp")
     profile = default_profile("project1", tmp_path / "Desktop", ["/mnt/c/Users/Administrator/Desktop"], "amd64", "thiswind", 1000, 1000)
@@ -99,9 +103,14 @@ def test_start_creates_compat_symlinks(tmp_path: Path) -> None:
 
     adapter.start(profile)
 
-    assert client.container.exec_user == "0:0"
-    command = client.container.exec_command
-    assert command == ["bash", "-lc", "mkdir -p /mnt/c/Users/Administrator && ln -sfn /home/thiswind/Desktop /mnt/c/Users/Administrator/Desktop"]
+    assert client.container.exec_calls[0] == {
+        "command": ["bash", "-lc", "mkdir -p /home/thiswind/.local/share /home/thiswind/.config && chown 1000:1000 /home/thiswind/.local /home/thiswind/.local/share /home/thiswind/.config"],
+        "user": "0:0",
+    }
+    assert client.container.exec_calls[1] == {
+        "command": ["bash", "-lc", "mkdir -p /mnt/c/Users/Administrator && ln -sfn /home/thiswind/Desktop /mnt/c/Users/Administrator/Desktop"],
+        "user": "0:0",
+    }
 
 
 def test_create_mounts_github_cli_config_when_present(tmp_path: Path) -> None:
