@@ -241,6 +241,8 @@ def _verify_profile_command(name: str, run_claude: bool) -> None:
             typer.echo(check.detail)
             if check.name == "lark_cli_bot_identity":
                 typer.echo(f"hint: run `lcp bridge {name} run` for first-time bot setup, or `lcp bridge {name} bind-lark-cli` after bot credentials already exist")
+            if check.name == "git_identity" and profile.integrations.providers.get("git") and profile.integrations.providers["git"].desired.enabled:
+                typer.echo(f"hint: run `lcp integration apply {name} --yes` to reapply the configured git identity, then `lcp integration verify {name} git`")
     if failures:
         raise typer.Exit(1)
 

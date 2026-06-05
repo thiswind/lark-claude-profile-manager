@@ -697,6 +697,29 @@ def test_profile_verify_lark_cli_bot_identity_failure_shows_hint(monkeypatch, tm
     assert "lcp bridge project1 bind-lark-cli" in result.output
 
 
+def test_profile_verify_git_identity_failure_shows_integration_reapply_hint(monkeypatch, tmp_path: Path) -> None:
+    from lcp.integrations.models import ProfileIntegrationState
+    from lcp.verify import CheckResult
+
+    store = make_store(tmp_path)
+    profile = store.load_profile("project1")
+    state = profile.integrations.providers.setdefault("git", ProfileIntegrationState())
+    state.desired.enabled = True
+    state.desired.config = {"user.name": "thiswind", "user.email": "thiswind@gmail.com"}
+    store.save_profile(profile)
+    FakeAdapter.container = FakeContainer()
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "verify_profile", lambda adapter, profile, run_claude=True: [CheckResult("git_identity", False, "missing git user.name")])
+
+    result = runner.invoke(cli.app, ["profile", "verify", "project1", "--no-run-claude"])
+
+    assert result.exit_code == 1
+    assert "failed: git_identity" in result.output
+    assert "lcp integration apply project1 --yes" in result.output
+    assert "lcp integration verify project1 git" in result.output
+
+
 def test_bridge_run_stays_foreground_proxy(monkeypatch, tmp_path: Path) -> None:
     store = make_store(tmp_path)
     FakeAdapter.container = FakeContainer()

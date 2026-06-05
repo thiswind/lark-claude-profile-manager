@@ -41,14 +41,24 @@ def verify_profile(adapter: DockerAdapter, profile: Profile, run_claude: bool = 
     return checks
 
 
+def _expected_git_identity(profile: Profile) -> tuple[str | None, str | None]:
+    state = profile.integrations.providers.get("git")
+    if state and state.desired.enabled:
+        user_name = state.desired.config.get("user.name")
+        user_email = state.desired.config.get("user.email")
+        if user_name or user_email:
+            return user_name, user_email
+    return profile.gitIdentity.name, profile.gitIdentity.email
+
+
 def _git_identity_check(profile: Profile) -> str:
-    expected = profile.gitIdentity
-    name_check = 'test -n "$name"'
-    email_check = 'test -n "$email"'
-    if expected.name:
-        name_check = f"test \"$name\" = {shlex.quote(expected.name)}"
-    if expected.email:
-        email_check = f"test \"$email\" = {shlex.quote(expected.email)}"
+    expected_name, expected_email = _expected_git_identity(profile)
+    name_check = 'test -n "$name" || { echo "missing git user.name"; exit 1; }'
+    email_check = 'test -n "$email" || { echo "missing git user.email"; exit 1; }'
+    if expected_name:
+        name_check = f"test \"$name\" = {shlex.quote(expected_name)} || {{ echo \"git user.name mismatch: expected {shlex.quote(expected_name)} got $name\"; exit 1; }}"
+    if expected_email:
+        email_check = f"test \"$email\" = {shlex.quote(expected_email)} || {{ echo \"git user.email mismatch: expected {shlex.quote(expected_email)} got $email\"; exit 1; }}"
     return f"""
 name=$(git config --global --get user.name || true)
 email=$(git config --global --get user.email || true)
