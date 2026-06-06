@@ -12,7 +12,7 @@
       "version": "0.2.2",
       "controlled": {
         "repo": "https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2",
-        "tag": "lcp-0.2.6-bridge-0.2.2",
+        "tag": "lcp-bridge-lock-20260606",
         "commit": "8468b1c63f0109aeedac28eb6e3d789b22a228f9"
       },
       "upstream": {
