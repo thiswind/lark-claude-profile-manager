@@ -59,8 +59,9 @@ class FakeCreatorAdapter(FakeAdapter):
     created = []
     started_profiles = []
 
-    def create_profile_container(self, profile):
+    def create_profile_container(self, profile, build_image=True):
         self.created.append(profile.name)
+        self.build_image = build_image
         return FakeContainer()
 
     def start(self, profile):
@@ -93,7 +94,7 @@ def test_version_option_shows_package_version() -> None:
     result = runner.invoke(cli.app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.output.strip() == "lcp 0.2.2"
+    assert result.output.strip() == "lcp 0.2.6"
 
 
 def test_help_shows_grouped_commands_and_hides_legacy_lifecycle_commands() -> None:
@@ -120,7 +121,7 @@ def test_profile_help_shows_lifecycle_commands() -> None:
     result = runner.invoke(cli.app, ["profile", "--help"])
 
     assert result.exit_code == 0
-    for command in ["create", "list", "status", "shell", "verify", "rebuild", "snapshot", "restore", "rm"]:
+    for command in ["create", "list", "status", "shell", "verify", "rebuild", "recover", "rename", "sync-name-from-bot", "snapshot", "restore", "rm"]:
         assert command in result.output
 
 
@@ -169,6 +170,114 @@ def test_profile_rebuild_all_dry_run_lists_profiles(monkeypatch, tmp_path: Path)
     assert "profile: project1" in result.output
     assert "profile: project2" in result.output
     assert result.output.count("dry-run: would rebuild") == 2
+
+
+def test_profile_list_and_status_show_bot_identity(monkeypatch, tmp_path: Path) -> None:
+    import json
+
+    store = make_store(tmp_path)
+    config = store.profile_dir("project1") / "lark-channel" / "config.json"
+    config.write_text(json.dumps({"accounts": {"app": {"id": "cli_123", "name": "Research Bot"}}}), encoding="utf-8")
+    monkeypatch.setattr(FakeAdapter, "container", FakeContainer())
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    list_result = runner.invoke(cli.app, ["profile", "list"])
+    status_result = runner.invoke(cli.app, ["profile", "status", "project1"])
+
+    assert list_result.exit_code == 0
+    assert "Research Bot" in list_result.output
+    assert status_result.exit_code == 0
+    assert "bot: Research Bot (cli_123)" in status_result.output
+
+
+def test_profile_rename_from_bot_dry_run(monkeypatch, tmp_path: Path) -> None:
+    import json
+
+    store = make_store(tmp_path)
+    config = store.profile_dir("project1") / "lark-channel" / "config.json"
+    config.write_text(json.dumps({"accounts": {"app": {"id": "cli_123", "name": "Research Bot"}}}), encoding="utf-8")
+    monkeypatch.setattr(FakeAdapter, "container", FakeContainer())
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "sync-name-from-bot", "project1", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "rename: project1 -> research-bot" in result.output
+    assert "note: existing container must be removed" in result.output
+    assert store.load_profile("project1").name == "project1"
+
+
+def test_profile_rename_requires_no_existing_container(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    monkeypatch.setattr(FakeAdapter, "container", FakeContainer())
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "rename", "project1", "research-bot", "--yes"])
+
+    assert result.exit_code == 1
+    assert "profile rename requires no existing container" in result.output
+
+
+def test_profile_rename_yes_moves_state_when_container_missing(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    monkeypatch.setattr(FakeAdapter, "container", None)
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "rename", "project1", "research-bot", "--yes"])
+
+    assert result.exit_code == 0
+    assert "renamed: project1 -> research-bot" in result.output
+    assert not store.profile_dir("project1").exists()
+    assert store.load_profile("research-bot").container.name == "lcp-research-bot"
+
+
+def test_profile_recover_dry_run_does_not_exec_or_remove(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    stale = FakeContainer("exited", "lcp-project1")
+    monkeypatch.setattr(FakeAdapter, "container", stale)
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "recover", "project1", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "dry-run: would recreate the container from the existing image without docker exec" in result.output
+    assert "remove stale container: lcp-project1" in result.output
+    assert stale.removed is False
+
+
+def test_profile_recover_requires_yes(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    monkeypatch.setattr(FakeAdapter, "container", FakeContainer("exited", "lcp-project1"))
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "recover", "project1"])
+
+    assert result.exit_code == 1
+    assert "profile recover requires explicit confirmation" in result.output
+
+
+def test_profile_recover_yes_recreates_without_exec(monkeypatch, tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    stale = FakeContainer("exited", "lcp-project1")
+    FakeCreatorAdapter.created = []
+    FakeCreatorAdapter.started_profiles = []
+    monkeypatch.setattr(FakeCreatorAdapter, "container", stale)
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeCreatorAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "recover", "project1", "--yes"])
+
+    assert result.exit_code == 0
+    assert stale.removed is True
+    assert FakeCreatorAdapter.created == ["project1"]
+    assert FakeCreatorAdapter.started_profiles == ["project1"]
+    assert "recovered: lcp-project1" in result.output
 
 
 def test_profile_cleanup_rollbacks_dry_run_lists_rollback_containers(monkeypatch, tmp_path: Path) -> None:
@@ -226,6 +335,55 @@ def test_bridge_help_shows_common_actions() -> None:
     assert "lcp bridge <profile> bind-lark-cli" in result.output
     assert "Foreground QR/debug" in result.output
     assert "Background run" in result.output
+
+
+def test_version_lock_show_lists_locked_dependencies() -> None:
+    result = runner.invoke(cli.app, ["version-lock", "show"])
+
+    assert result.exit_code == 0
+    assert "LCP: 0.2.6" in result.output
+    assert "feishu-claude-code-bridge:" in result.output
+    assert "policy: controlled-fork" in result.output
+    assert "repo: https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2" in result.output
+    assert "tag: lcp-0.2.2" in result.output
+    assert "lark-cli:" in result.output
+
+
+def test_version_lock_verify_passes() -> None:
+    result = runner.invoke(cli.app, ["version-lock", "verify"])
+
+    assert result.exit_code == 0
+    assert "ok: version_lock" in result.output
+
+
+def test_runtime_apply_dry_run_shows_resolved_specs(monkeypatch, tmp_path: Path) -> None:
+    store = cli.LcpStore(tmp_path / ".lcp")
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+
+    result = runner.invoke(cli.app, ["runtime", "apply", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "claude-code: @anthropic-ai/claude-code@2.1.150" in result.output
+    assert "lark-cli: @larksuite/cli@1.0.46" in result.output
+    assert "lark-channel-bridge: git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git#4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc" in result.output
+    assert "lark-channel-bridge: lark-channel-bridge@latest" not in result.output
+
+
+def test_host_admin_bootstrap_dry_run_lists_python_managed_steps(tmp_path: Path) -> None:
+    result = runner.invoke(cli.app, ["host-admin", "bootstrap", "--path", str(tmp_path / "LCP_HOST_ADMIN"), "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "dry-run: npm install -g @anthropic-ai/claude-code" in result.output
+    assert "lf3-static.bytednsdoc.com" in result.output
+    assert "lcp host-admin bind --from-env" in result.output
+    assert not (tmp_path / "LCP_HOST_ADMIN").exists()
+
+
+def test_host_admin_bind_requires_bot_configuration(tmp_path: Path) -> None:
+    result = runner.invoke(cli.app, ["host-admin", "bind", "--path", str(tmp_path / "LCP_HOST_ADMIN")])
+
+    assert result.exit_code == 1
+    assert "host-admin bind requires bot configuration" in result.output
 
 
 def test_rm_container_is_hidden_debug_and_idempotent(monkeypatch, tmp_path: Path) -> None:
@@ -508,7 +666,13 @@ def test_profile_verify_checks_lark_cli_bot_identity(monkeypatch, tmp_path: Path
     def fake_verify(adapter, profile, run_claude=True):
         from lcp.verify import verify_profile
 
-        adapter.exec = lambda profile, command: commands.append(command) or ExecResult(0, "ok")
+        def fake_exec(profile, command):
+            commands.append(command)
+            if "/logs/bridge-supervisor.pid" in command:
+                return ExecResult(0, "running:123:456:root")
+            return ExecResult(0, "ok")
+
+        adapter.exec = fake_exec
         return verify_profile(adapter, profile, run_claude=False)
 
     monkeypatch.setattr(cli, "LcpStore", lambda: store)
@@ -519,7 +683,65 @@ def test_profile_verify_checks_lark_cli_bot_identity(monkeypatch, tmp_path: Path
 
     assert result.exit_code == 0
     assert "ok: lark_cli_bot_identity" in result.output
+    assert "ok: bridge_runtime" in result.output
     assert any(".lark-cli/lark-channel/config.json" in command for command in commands)
+
+
+def test_profile_verify_lark_cli_bot_identity_failure_shows_hint(monkeypatch, tmp_path: Path) -> None:
+    from lcp.verify import CheckResult
+
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "verify_profile", lambda adapter, profile, run_claude=True: [CheckResult("lark_cli_bot_identity", False, "bot missing")])
+
+    result = runner.invoke(cli.app, ["profile", "verify", "project1", "--no-run-claude"])
+
+    assert result.exit_code == 1
+    assert "failed: lark_cli_bot_identity" in result.output
+    assert "lcp bridge project1 run" in result.output
+    assert "lcp bridge project1 bind-lark-cli" in result.output
+
+
+def test_profile_verify_git_identity_failure_shows_integration_reapply_hint(monkeypatch, tmp_path: Path) -> None:
+    from lcp.integrations.models import ProfileIntegrationState
+    from lcp.verify import CheckResult
+
+    store = make_store(tmp_path)
+    profile = store.load_profile("project1")
+    state = profile.integrations.providers.setdefault("git", ProfileIntegrationState())
+    state.desired.enabled = True
+    state.desired.config = {"user.name": "thiswind", "user.email": "thiswind@gmail.com"}
+    store.save_profile(profile)
+    FakeAdapter.container = FakeContainer()
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "verify_profile", lambda adapter, profile, run_claude=True: [CheckResult("git_identity", False, "missing git user.name")])
+
+    result = runner.invoke(cli.app, ["profile", "verify", "project1", "--no-run-claude"])
+
+    assert result.exit_code == 1
+    assert "failed: git_identity" in result.output
+    assert "lcp integration apply project1 --yes" in result.output
+    assert "lcp integration verify project1 git" in result.output
+
+
+def test_profile_verify_bridge_runtime_failure_shows_restart_hint(monkeypatch, tmp_path: Path) -> None:
+    from lcp.verify import CheckResult
+
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "verify_profile", lambda adapter, profile, run_claude=True: [CheckResult("bridge_runtime", False, "stopped")])
+
+    result = runner.invoke(cli.app, ["profile", "verify", "project1", "--no-run-claude"])
+
+    assert result.exit_code == 1
+    assert "failed: bridge_runtime" in result.output
+    assert "lcp bridge project1 restart" in result.output
+    assert "Lark/Feishu entry point" in result.output
 
 
 def test_bridge_run_stays_foreground_proxy(monkeypatch, tmp_path: Path) -> None:

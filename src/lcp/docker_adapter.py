@@ -10,6 +10,7 @@ from docker.models.containers import Container
 from .dockerfile import render_base_dockerfile, render_profile_dockerfile, render_runtime_dockerfile
 from .integrations.service import IntegrationService
 from .models import Profile, UBUNTU_LTS_IMAGE
+from .skills import lark_cli_file_send_skill_dir
 from .store import LcpStore
 
 
@@ -139,7 +140,15 @@ class DockerAdapter:
     def start(self, profile: Profile) -> None:
         container = self.get_container(profile)
         container.start()
+        self.ensure_home_parent_dirs(profile)
         self.ensure_compat_symlinks(profile)
+
+    def ensure_home_parent_dirs(self, profile: Profile) -> None:
+        user = profile.container.user
+        home = shlex.quote(user.home)
+        result = self.exec_root(profile, f"mkdir -p {home}/.local/share {home}/.config && chown {user.uid}:{user.gid} {home}/.local {home}/.local/share {home}/.config")
+        if result.exit_code != 0:
+            raise RuntimeError(result.output)
 
     def ensure_compat_symlinks(self, profile: Profile) -> None:
         links = profile.mounts.desktop.compatSymlinks
@@ -220,6 +229,9 @@ class DockerAdapter:
             str(self.store.cache_dir / "pip"): {"bind": "/cache/pip", "mode": "rw"},
             str(self.store.cache_dir / "tmp"): {"bind": "/cache/tmp", "mode": "rw"},
         }
+        skill_dir = lark_cli_file_send_skill_dir(self.store, profile)
+        if skill_dir.exists():
+            binds[str(skill_dir)] = {"bind": f"{user_home}/.claude/skills/lark-cli-file-send", "mode": "ro"}
         claude = profile.mounts.claude
         if claude.shareConfig:
             claude_dir = Path(claude.hostClaudeDir)

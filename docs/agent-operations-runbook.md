@@ -132,8 +132,9 @@ Host integrations grant one profile access to selected host tool credentials wit
 Built-in providers:
 
 - `git` configures the host Git identity inside the profile container.
-- `github` copies host GitHub CLI auth into a profile-local snapshot, mounts it read-only, and installs or upgrades container `gh` to the host `gh` version during apply.
+- `github` copies host GitHub CLI auth into a profile-local snapshot, mounts it read-only, and tries to install or upgrade container `gh` to the recorded host version during apply. If that exact apt version is unavailable, LCP falls back to the GitHub CLI repository default package.
 - `proxy` writes explicitly granted HTTP, HTTPS, and SOCKS proxy settings into the profile container and mounts a profile-local Claude Code proxy skill read-only. It must not rely on hardcoded host proxy endpoints.
+- `ssh` copies a least-privilege SSH snapshot into profile state and mounts it read-only, for SOFIA or other SSH-based workflows. It must not copy the entire host `~/.ssh` by default.
 - `vercel` installs the host-matching Vercel CLI version in the container and mounts copied Vercel auth read-only.
 
 Check host readiness before granting:
@@ -149,6 +150,7 @@ Grant integrations one provider at a time:
 lcp integration grant <profile> git
 lcp integration grant <profile> github
 lcp integration grant <profile> vercel
+lcp integration grant <profile> ssh --config key=id_sofia --config includePrivateKeys=true
 LCP_PROXY_HTTP='http://proxy.example:8080' LCP_PROXY_SOCKS5='socks5h://proxy.example:1080' lcp integration grant <profile> proxy --from-env
 ```
 
@@ -210,9 +212,126 @@ Important safety rules:
 - Do not manually edit `profile.json` to grant or revoke providers.
 - Do not manually mount host credential directories into Docker containers.
 - Do not write host-local proxy addresses into source, docs, defaults, or tests. Proxy endpoints belong in explicit grant-time environment variables or `--config` values.
+- Do not grant `ssh` private keys without an explicit `key=<path-or-name>` and user intent. The default SSH grant should stay config/known-hosts only.
 - Treat proxy URLs as sensitive when they contain credentials; LCP redacts provider output, but operators should still avoid pasting raw proxy URLs into chat or logs.
 - Use `grant` again after the host reauthenticates, rotates credentials, upgrades a host CLI whose version should be mirrored in the container, or changes proxy endpoint configuration.
 - If `apply` fails, read `lcp integration status <profile>` before retrying.
+
+## Recover stale profile containers
+
+Use this when Docker Desktop or WSL bind mounts are stale and a profile container cannot start or cannot be reached with `docker exec`.
+
+Do not diagnose this by entering the broken container. The recovery path is host-side only.
+
+Safe sequence:
+
+```bash
+lcp profile recover <profile> --dry-run
+```
+
+Review the preserved host paths and planned actions. If the user wants to proceed:
+
+```bash
+lcp profile recover <profile> --yes
+```
+
+After recovery:
+
+```bash
+lcp profile verify <profile> --no-run-claude
+lcp bridge <profile> start
+```
+
+If verification fails, read the failed check output before rebuilding or removing anything else.
+
+## Align profile names with bot identity
+
+`lcp profile list` and `lcp profile status <profile>` show the bound bot identity when profile-local Lark config is available.
+
+To rename a profile from its bound bot identity, always preview first:
+
+```bash
+lcp profile sync-name-from-bot <profile> --dry-run
+```
+
+Only apply when no current container exists for the old profile name. If a container exists, LCP refuses the real rename to avoid state/container mismatch.
+
+Manual target names use the same dry-run-first flow:
+
+```bash
+lcp profile rename <profile> <new-name> --dry-run
+lcp profile rename <profile> <new-name> --yes
+```
+
+Do not manually move `~/.lcp/profiles/<profile>` directories.
+
+## Inspect LCP Version Lock
+
+Every LCP release should have a Version Lock that records external dependency policy, versions, and controlled dependency anchors.
+
+Inspect it before release or dependency work:
+
+```bash
+lcp version-lock show
+```
+
+Verify it before release:
+
+```bash
+lcp version-lock verify
+```
+
+Expected result:
+
+```text
+ok: version_lock
+```
+
+If verification fails:
+
+1. Read the exact failed dependency.
+2. Do not publish a release until the lock and package version agree.
+3. Do not accept `latest` for critical dependencies.
+4. For controlled fork dependencies, require repo, tag, and exact commit SHA.
+5. For bridge-class runtime work, confirm the install source resolves from Version Lock to an exact controlled commit SHA instead of upstream `latest` or an unqualified npm package.
+
+## Manage the Host Admin Agent
+
+The Host Admin Agent is the host-level management entry point. It is not an LCP profile and should not be placed under the ordinary profile workspace tree.
+
+Default workspace:
+
+```text
+~/Desktop/Projects/LCP_HOST_ADMIN
+```
+
+Preview setup first:
+
+```bash
+lcp host-admin bootstrap --dry-run
+```
+
+Real setup requires explicit confirmation:
+
+```bash
+lcp host-admin bootstrap --yes
+```
+
+The built-in Python command installs host Claude Code with npm, installs ByteDance Ark Helper, and installs host bridge tools. After that, the user must activate Claude Code through Ark Helper. Do not try to bypass this login step.
+
+After activation and bot configuration, bind and start:
+
+```bash
+lcp host-admin bind --from-env
+lcp host-admin start
+```
+
+Use status/doctor for diagnosis:
+
+```bash
+lcp host-admin status
+lcp host-admin doctor
+```
 
 ## Manage shared base and runtime images
 
@@ -234,11 +353,17 @@ lcp runtime apply --yes
 Default shared image tags are versioned with the LCP version and Ubuntu LTS suffix, for example:
 
 ```text
-lcp/base:0.2.0-ubuntu24.04
-lcp/runtime:0.2.0-ubuntu24.04
+lcp/base:0.2.6-ubuntu24.04
+lcp/runtime:0.2.6-ubuntu24.04
 ```
 
-Building shared images does not recreate existing profile containers. Use profile rebuild after reviewing its dry-run output.
+Current base/runtime images include common troubleshooting tools:
+
+```text
+tree, rg, jq, file, ip, ss, nc, dig, nslookup, traceroute
+```
+
+Building shared images does not recreate existing profile containers. Use profile rebuild after reviewing its dry-run output. If an existing profile container does not have the current troubleshooting tools, rebuild that profile after reviewing the dry-run output.
 
 ## Rebuild profile containers safely
 
@@ -489,14 +614,16 @@ What LCP does:
    ```
 
 5. Fails fast if bridge config is missing or `lark-cli` cannot be put into `bot-only` / default `bot` state.
-6. Starts a supervisor loop inside the container.
-7. The supervisor loop runs:
+6. Installs a root-owned bridge supervisor at `/usr/local/bin/lcp-bridge-sv`.
+7. Starts that supervisor in the background.
+8. The supervisor runs the bridge child as the profile user:
 
    ```bash
    lark-channel-bridge run
    ```
 
-8. Bridge logs go to:
+9. If the bridge child dies, the supervisor restarts it.
+10. Bridge logs go to:
 
    ```text
    /logs/bridge.log
@@ -586,8 +713,10 @@ lcp profile list
 
 Expected bridge status behavior:
 
-- A valid running bridge status must identify the real `lark-channel-bridge run` child process.
-- Do not treat the supervisor shell alone as proof that the bridge is healthy.
+- `running` means the supervisor and the real `lark-channel-bridge run` child are both alive.
+- `degraded` means the supervisor is alive but the bridge child is not currently alive.
+- `stopped` means the managed supervisor is not alive.
+- Do not treat the supervisor alone as proof that the bridge is healthy.
 
 ## Verify a profile
 
@@ -615,6 +744,7 @@ Important checks:
 - `lark-cli` availability.
 - `lark_cli_bot_identity`.
 - `lark-channel-bridge` availability.
+- `bridge_runtime`, which confirms the Lark/Feishu entry point is actually alive.
 
 If `lark_cli_bot_identity` fails:
 
@@ -631,6 +761,22 @@ If `lark_cli_bot_identity` fails:
    ```
 
 3. If it still fails, inspect the output. It should indicate missing config, app mismatch, or identity mismatch.
+
+If `bridge_runtime` fails:
+
+1. Restart the managed bridge:
+
+   ```bash
+   lcp bridge <name> restart
+   ```
+
+2. Verify again:
+
+   ```bash
+   lcp profile verify <name> --no-run-claude
+   ```
+
+3. If it still fails, inspect bridge logs before changing container state.
 
 ## Logs
 

@@ -11,26 +11,34 @@ from rich.table import Table
 from . import __version__
 from .bridge import bridge_status, start_bridge, stop_bridge, BRIDGE_LOG
 from .docker_adapter import DockerAdapter
+from .host_admin import bind_host_admin_lark_cli, bootstrap_host_admin, host_admin_paths, load_host_admin_state, start_host_admin_bridge, tool_status
 from .installer import install_runtime
 from .integrations.service import IntegrationService
 from .lark_cli import LARK_CLI_BOT_IDENTITY_CHECK, bind_lark_cli
 from .models import Profile, container_name, default_profile
+from .profile_meta import profile_bot_identity, profile_name_from_bot, rename_profile_state, renamed_profile
 from .rebuild import RebuildError, cleanup_rollback_containers, list_rollback_containers, plan_profile_rebuild, rebuild_profile
+from .recover import RecoverError, plan_profile_recover, recover_profile_container
 from .selfcheck import collect_init_report
 from .store import LcpStore
 from .ui import console, print_banner, print_checks
 from .verify import verify_profile
+from .version_lock import dependency_npm_install_spec, load_version_lock, verify_version_lock
 
 app = typer.Typer(help="Manage Lark Claude profile containers", context_settings={"help_option_names": ["-h", "--help"]})
 profile_app = typer.Typer(help="Manage profiles", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 rm_app = typer.Typer(help="Debug removal commands", context_settings={"help_option_names": ["-h", "--help"]})
 integration_app = typer.Typer(help="Manage profile host integrations", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
+host_admin_app = typer.Typer(help="Manage the host-level LCP admin agent", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 image_app = typer.Typer(help="Manage LCP shared images", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 runtime_app = typer.Typer(help="Manage LCP runtime tools", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
+version_lock_app = typer.Typer(help="Inspect the LCP release dependency lock", no_args_is_help=True, context_settings={"help_option_names": ["-h", "--help"]})
 app.add_typer(profile_app, name="profile")
 app.add_typer(integration_app, name="integration")
+app.add_typer(host_admin_app, name="host-admin")
 app.add_typer(image_app, name="image")
 app.add_typer(runtime_app, name="runtime")
+app.add_typer(version_lock_app, name="version-lock")
 app.add_typer(rm_app, name="rm", hidden=True)
 
 
@@ -176,6 +184,10 @@ def _create_profile(name: str, desktop: str | None, install: bool) -> None:
                 raise typer.Exit(result.exit_code)
 
 
+def _bridge_state_label(status) -> str:
+    return getattr(status, "state", "running" if status.running else "stopped")
+
+
 def _list_profiles() -> None:
     store = LcpStore()
     adapter = DockerAdapter(store)
@@ -184,6 +196,7 @@ def _list_profiles() -> None:
     table.add_column("container")
     table.add_column("status")
     table.add_column("bridge")
+    table.add_column("bot")
     for name in store.list_profiles():
         profile = _load_profile_or_exit(store, name)
         container = adapter.get_container_or_none(profile)
@@ -191,8 +204,8 @@ def _list_profiles() -> None:
         bridge = "-"
         if container:
             status = bridge_status(adapter, profile)
-            bridge = "running" if status.running else "stopped"
-        table.add_row(name, profile.container.name, container_status, bridge)
+            bridge = _bridge_state_label(status)
+        table.add_row(name, profile.container.name, container_status, bridge, profile_bot_identity(store, profile).label)
     console.print(table)
 
 
@@ -205,7 +218,8 @@ def _show_profile_status(name: str) -> None:
     typer.echo(f"name: {profile.name}")
     typer.echo(f"container: {container.name}")
     typer.echo(f"status: {container.status}")
-    typer.echo(f"bridge: {'running' if status.running else 'stopped'}")
+    typer.echo(f"bridge: {_bridge_state_label(status)}")
+    typer.echo(f"bot: {profile_bot_identity(store, profile).label}")
     if status.pid:
         typer.echo(f"bridge pid: {status.pid}")
 
@@ -229,6 +243,12 @@ def _verify_profile_command(name: str, run_claude: bool) -> None:
         if not check.ok:
             failures += 1
             typer.echo(check.detail)
+            if check.name == "lark_cli_bot_identity":
+                typer.echo(f"hint: run `lcp bridge {name} run` for first-time bot setup, or `lcp bridge {name} bind-lark-cli` after bot credentials already exist")
+            if check.name == "git_identity" and profile.integrations.providers.get("git") and profile.integrations.providers["git"].desired.enabled:
+                typer.echo(f"hint: run `lcp integration apply {name} --yes` to reapply the configured git identity, then `lcp integration verify {name} git`")
+            if check.name == "bridge_runtime":
+                typer.echo(f"hint: run `lcp bridge {name} restart` to repair the bridge supervisor and restore the Lark/Feishu entry point")
     if failures:
         raise typer.Exit(1)
 
@@ -315,6 +335,71 @@ def _rebuild_profile(name: str | None, all_profiles: bool, dry_run: bool, yes: b
                     typer.echo(f"recovery: {line}")
             raise typer.Exit(1) from exc
         _print_rebuild_result(profile, result)
+
+
+def _rename_profile(name: str, new_name: str | None, from_bot: bool, dry_run: bool, yes: bool) -> None:
+    store = LcpStore()
+    profile = _load_profile_or_exit(store, name)
+    identity = profile_bot_identity(store, profile)
+    target = profile_name_from_bot(identity) if from_bot else new_name
+    if not target:
+        _fail("target profile name is required", "pass NEW_NAME or use --from-bot after binding the profile bot")
+    _profile_from_name_or_exit(target)
+    if target == name:
+        typer.echo(f"profile already has target name: {name}")
+        return
+    if (store.profile_dir(target) / "profile.json").exists():
+        _fail(f"profile already exists: {target}")
+    adapter = DockerAdapter(store)
+    container_exists = adapter.get_container_or_none(profile) is not None
+    updated = renamed_profile(profile, target)
+    typer.echo(f"rename: {name} -> {target}")
+    typer.echo(f"container: {profile.container.name} -> {updated.container.name}")
+    typer.echo(f"image: {profile.container.image} -> {updated.container.image}")
+    typer.echo(f"workspace: {profile.workspace.defaultCwd} -> {updated.workspace.defaultCwd}")
+    typer.echo(f"bot: {identity.label}")
+    if dry_run:
+        if container_exists:
+            typer.echo("note: existing container must be removed or recovered under the new name before rename can apply")
+        typer.echo("dry-run: would rename profile state directory and update profile metadata")
+        return
+    if container_exists:
+        _fail("profile rename requires no existing container", f"remove the old container after reviewing `lcp profile rename {name} {target} --dry-run`; current container is {profile.container.name}")
+    if not yes:
+        _fail("profile rename requires explicit confirmation", f"run `lcp profile rename {name} {target} --dry-run` first, then rerun with `--yes`")
+    try:
+        rename_profile_state(store, name, updated)
+    except FileExistsError as exc:
+        _fail(str(exc))
+    typer.echo(f"renamed: {name} -> {target}")
+
+
+def _recover_profile(name: str, dry_run: bool, yes: bool, start: bool) -> None:
+    store = LcpStore()
+    profile = _load_profile_or_exit(store, name)
+    adapter = DockerAdapter(store)
+    plan = plan_profile_recover(store, adapter, profile)
+    typer.echo(f"profile: {plan.profile}")
+    typer.echo(f"container: {plan.container} ({plan.currentStatus})")
+    typer.echo(f"image: {plan.image}")
+    typer.echo("preserved host paths:")
+    for path in plan.preservedHostPaths:
+        typer.echo(f"  {path}")
+    typer.echo("actions:")
+    for action in plan.actions:
+        typer.echo(f"  {action}")
+    if dry_run:
+        typer.echo("dry-run: would recreate the container from the existing image without docker exec")
+        return
+    if not yes:
+        _fail("profile recover requires explicit confirmation", f"run `lcp profile recover {name} --dry-run` first, then rerun with `--yes`")
+    try:
+        result = recover_profile_container(store, adapter, profile, start=start)
+    except RecoverError as exc:
+        _fail(f"profile recover failed: {name}", str(exc))
+    typer.echo(f"recovered: {result.container}")
+    for action in result.actions:
+        typer.echo(f"done: {action}")
 
 
 def _cleanup_rollbacks(name: str | None, all_profiles: bool, dry_run: bool, yes: bool) -> None:
@@ -513,6 +598,99 @@ def _runtime_list() -> None:
         typer.echo(f"{name}: {tool.package}@{tool.version}")
 
 
+def _version_lock_show() -> None:
+    lock = load_version_lock()
+    typer.echo(f"LCP: {lock.lcpVersion}")
+    typer.echo(f"generated: {lock.generatedAt}")
+    for dependency in lock.dependencies:
+        typer.echo(f"{dependency.name}:")
+        typer.echo(f"  policy: {dependency.policy}")
+        typer.echo(f"  risk: {dependency.risk}")
+        if dependency.package:
+            typer.echo(f"  package: {dependency.package}")
+        if dependency.version:
+            typer.echo(f"  version: {dependency.version}")
+        if dependency.controlled:
+            typer.echo(f"  repo: {dependency.controlled.repo}")
+            typer.echo(f"  tag: {dependency.controlled.tag}")
+            typer.echo(f"  commit: {dependency.controlled.commit}")
+        if dependency.upstream:
+            upstream_ref = dependency.upstream.tag or dependency.upstream.branch or "unknown"
+            typer.echo(f"  upstream: {dependency.upstream.repo}@{upstream_ref}")
+            typer.echo(f"  upstream commit: {dependency.upstream.commit}")
+        typer.echo(f"  patches: {len(dependency.patches)}")
+
+
+def _version_lock_verify() -> None:
+    try:
+        lock = load_version_lock()
+        failures = verify_version_lock(lock)
+    except (OSError, ValueError, ValidationError) as exc:
+        _fail("version lock is invalid", str(exc))
+    if failures:
+        for failure in failures:
+            typer.echo(f"failed: {failure}")
+        raise typer.Exit(1)
+    typer.echo("ok: version_lock")
+
+
+def _host_admin_bootstrap(path: str | None, dry_run: bool, yes: bool) -> None:
+    paths = host_admin_paths(Path(path) if path else None)
+    try:
+        results = bootstrap_host_admin(paths, dry_run=dry_run, yes=yes)
+    except RuntimeError as exc:
+        _fail(str(exc), "rerun with `lcp host-admin bootstrap --dry-run` first, then `--yes`")
+    typer.echo(f"path: {paths.root}")
+    for result in results:
+        status = "dry-run" if dry_run else "ok" if result.exit_code == 0 else "failed"
+        typer.echo(f"{status}: {result.command}")
+        if result.output and result.output != "dry-run":
+            typer.echo(result.output.strip())
+        if result.exit_code != 0:
+            raise typer.Exit(result.exit_code)
+    typer.echo("next: use ByteDance Ark Helper to activate Claude Code, then run `lcp host-admin bind --from-env`")
+
+
+def _host_admin_status(path: str | None) -> None:
+    paths = host_admin_paths(Path(path) if path else None)
+    state = load_host_admin_state(paths)
+    typer.echo(f"path: {paths.root}")
+    typer.echo(f"state: {paths.state_file if state else 'missing'}")
+    for tool in ["claude", "lark-channel-bridge", "lark-cli"]:
+        result = tool_status(tool, paths=paths)
+        status = "ok" if result.exit_code == 0 else "missing"
+        first_line = result.output.strip().splitlines()[0] if result.output.strip() else ""
+        typer.echo(f"{tool}: {status}{f' - {first_line}' if first_line else ''}")
+    if state:
+        typer.echo(f"bot app: {state.botAppId or 'missing'}")
+        typer.echo(f"lark-cli bound: {state.larkCliBound}")
+
+
+def _host_admin_bind(path: str | None, from_env: bool, app_id: str | None) -> None:
+    if not from_env and not app_id:
+        _fail("host-admin bind requires bot configuration", "use `--from-env` or `--app-id <id>` after configuring the bridge bot")
+    paths = host_admin_paths(Path(path) if path else None)
+    results = bind_host_admin_lark_cli(paths, app_id if app_id else None)
+    for result in results:
+        status = "ok" if result.exit_code == 0 else "failed"
+        typer.echo(f"{status}: {result.command}")
+        if result.output.strip():
+            typer.echo(result.output.strip())
+        if result.exit_code != 0:
+            raise typer.Exit(result.exit_code)
+    typer.echo("next: run `lcp host-admin start`")
+
+
+def _host_admin_start(path: str | None) -> None:
+    paths = host_admin_paths(Path(path) if path else None)
+    result = start_host_admin_bridge(paths)
+    if result.exit_code != 0:
+        typer.echo(result.output.strip())
+        raise typer.Exit(result.exit_code)
+    typer.echo(f"bridge started: {result.output.strip()}")
+    typer.echo(f"logs: {paths.logs / 'bridge.log'}")
+
+
 def _runtime_apply(dry_run: bool, yes: bool) -> None:
     store = LcpStore()
     store.init_dirs()
@@ -522,7 +700,8 @@ def _runtime_apply(dry_run: bool, yes: bool) -> None:
     typer.echo(f"dockerfile: {store.runtime_dir / 'Dockerfile.runtime'}")
     typer.echo("tools:")
     for name, tool in sorted(manifest.tools.items()):
-        typer.echo(f"  {name}: {tool.package}@{tool.version}")
+        spec = dependency_npm_install_spec(tool.versionLockDependency) if tool.versionLockDependency else tool.package if tool.version == "latest" else f"{tool.package}@{tool.version}"
+        typer.echo(f"  {name}: {spec}")
     typer.echo("affected profiles:")
     if profiles:
         for profile_name in profiles:
@@ -792,6 +971,36 @@ def profile_rebuild(
     _rebuild_profile(name, all_profiles, dry_run, yes)
 
 
+@profile_app.command("rename")
+def profile_rename(
+    name: str,
+    new_name: str | None = typer.Argument(None, help="New profile name"),
+    from_bot: bool = typer.Option(False, "--from-bot", help="Derive the target name from the bound bot identity"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview profile rename without changing state"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm rename"),
+) -> None:
+    _rename_profile(name, new_name, from_bot, dry_run, yes)
+
+
+@profile_app.command("sync-name-from-bot")
+def profile_sync_name_from_bot(
+    name: str,
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview profile rename without changing state"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm rename"),
+) -> None:
+    _rename_profile(name, None, True, dry_run, yes)
+
+
+@profile_app.command("recover")
+def profile_recover(
+    name: str,
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview stale-container recovery without changing Docker state"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm recovery"),
+    start: bool = typer.Option(True, help="Start the replacement container after creating it"),
+) -> None:
+    _recover_profile(name, dry_run, yes, start)
+
+
 @profile_app.command("cleanup-rollbacks")
 def profile_cleanup_rollbacks(
     name: str | None = typer.Argument(None, help="Profile name whose rollback containers should be removed"),
@@ -846,6 +1055,49 @@ def runtime_apply(
     yes: bool = typer.Option(False, "--yes", "-y", help="Confirm real build"),
 ) -> None:
     _runtime_apply(dry_run, yes)
+
+
+@version_lock_app.command("show")
+def version_lock_show() -> None:
+    _version_lock_show()
+
+
+@version_lock_app.command("verify")
+def version_lock_verify() -> None:
+    _version_lock_verify()
+
+
+@host_admin_app.command("bootstrap")
+def host_admin_bootstrap(
+    path: str | None = typer.Option(None, help="Host admin workspace path"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview host admin installation without running installers"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm real host admin installation"),
+) -> None:
+    _host_admin_bootstrap(path, dry_run, yes)
+
+
+@host_admin_app.command("status")
+def host_admin_status(path: str | None = typer.Option(None, help="Host admin workspace path")) -> None:
+    _host_admin_status(path)
+
+
+@host_admin_app.command("doctor")
+def host_admin_doctor(path: str | None = typer.Option(None, help="Host admin workspace path")) -> None:
+    _host_admin_status(path)
+
+
+@host_admin_app.command("bind")
+def host_admin_bind(
+    path: str | None = typer.Option(None, help="Host admin workspace path"),
+    from_env: bool = typer.Option(False, "--from-env", help="Read LARK_APP_ID from environment and bind lark-cli to the host bridge"),
+    app_id: str | None = typer.Option(None, "--app-id", help="Host admin bot app ID to record in state"),
+) -> None:
+    _host_admin_bind(path, from_env, app_id)
+
+
+@host_admin_app.command("start")
+def host_admin_start(path: str | None = typer.Option(None, help="Host admin workspace path")) -> None:
+    _host_admin_start(path)
 
 
 @integration_app.command("list")

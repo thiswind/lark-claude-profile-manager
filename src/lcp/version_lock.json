@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "lcpVersion": "0.2.6",
+  "generatedAt": "2026-06-06",
+  "dependencies": [
+    {
+      "name": "feishu-claude-code-bridge",
+      "role": "Feishu/Lark bridge runtime",
+      "risk": "critical",
+      "policy": "controlled-fork",
+      "package": "lark-channel-bridge",
+      "version": "0.1.32",
+      "controlled": {
+        "repo": "https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2",
+        "tag": "lcp-0.2.2",
+        "commit": "4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc"
+      },
+      "upstream": {
+        "repo": "https://github.com/zarazhangrui/feishu-claude-code-bridge",
+        "branch": "main",
+        "tag": null,
+        "commit": "bdc844b7115797fd6d2b56f2bdd71491ee1b06bb"
+      },
+      "patches": [
+        "LCP-controlled fork patch: add package.json prepare script so npm Git installs build dist artifacts."
+      ],
+      "validation": {
+        "lcpVersion": "0.2.6",
+        "validatedAt": "2026-06-06",
+        "profiles": [
+          "teaching_daily"
+        ],
+        "commands": [
+          "PYTHONPATH=src pytest",
+          "PYTHONPATH=src python -m lcp.cli version-lock verify",
+          "PYTHONPATH=src python -m lcp.cli runtime apply --yes",
+          "PYTHONPATH=src python -m lcp.cli profile verify teaching_daily --no-run-claude"
+        ]
+      }
+    },
+    {
+      "name": "lark-cli",
+      "role": "Feishu/Lark bot identity and attachment CLI",
+      "risk": "critical",
+      "policy": "pin-first",
+      "package": "@larksuite/cli",
+      "version": "1.0.46",
+      "patches": [],
+      "validation": {
+        "lcpVersion": "0.2.6",
+        "validatedAt": "2026-06-06",
+        "profiles": [
+          "teaching_daily"
+        ],
+        "commands": [
+          "lark-cli auth status --json",
+          "lark-cli config bind --source lark-channel --identity bot-only --force",
+          "lark-cli config default-as bot",
+          "lark-cli config strict-mode bot",
+          "PYTHONPATH=src python -m lcp.cli profile verify teaching_daily --no-run-claude"
+        ]
+      }
+    },
+    {
+      "name": "claude-code",
+      "role": "Claude Code agent runtime",
+      "risk": "critical",
+      "policy": "pin-only",
+      "package": "@anthropic-ai/claude-code",
+      "version": "2.1.150",
+      "patches": []
+    },
+    {
+      "name": "github-cli",
+      "role": "GitHub host integration provider tool",
+      "risk": "medium",
+      "policy": "provider-managed",
+      "package": "gh",
+      "version": "host-synchronized",
+      "patches": []
+    },
+    {
+      "name": "vercel-cli",
+      "role": "Vercel host integration provider tool",
+      "risk": "medium",
+      "policy": "provider-managed",
+      "package": "vercel",
+      "version": "host-synchronized",
+      "patches": []
+    }
+  ]
+}

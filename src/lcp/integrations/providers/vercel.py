@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import re
 import shlex
 import subprocess
@@ -30,6 +31,14 @@ class VercelProvider(IntegrationProvider):
         version_result = subprocess.run(["vercel", "--version"], capture_output=True, text=True)
         if version_result.returncode != 0:
             return HostCheck(provider=self.name, ok=False, message=(version_result.stderr or version_result.stdout).strip() or "vercel not found")
+        token = self._token()
+        if token:
+            whoami = subprocess.run(["vercel", "whoami", "--token", token], capture_output=True, text=True)
+            if whoami.returncode != 0:
+                return HostCheck(provider=self.name, ok=False, version=self._parse_version(version_result.stdout), message=(whoami.stderr or whoami.stdout).strip() or "vercel token is not valid")
+            auth_path = self._token_auth_path()
+            self._write_token_auth_snapshot(auth_path, token)
+            return HostCheck(provider=self.name, ok=True, version=self._parse_version(version_result.stdout), authPath=str(auth_path), message="vercel token authenticated", details={"account": whoami.stdout.strip(), "auth": "token"})
         whoami = subprocess.run(["vercel", "whoami"], capture_output=True, text=True)
         if whoami.returncode != 0:
             return HostCheck(provider=self.name, ok=False, version=self._parse_version(version_result.stdout), message=(whoami.stderr or whoami.stdout).strip() or "vercel is not authenticated")
@@ -69,8 +78,9 @@ class VercelProvider(IntegrationProvider):
 
     def verify_commands(self, profile: Profile, external: bool = False) -> list[str]:
         home = shlex.quote(profile.container.user.home)
+        token_file = shlex.quote(f"{profile.container.user.home}/.local/share/com.vercel.cli/lcp-token.json")
         return [
-            f"tmp=$(mktemp -d) && mkdir -p \"$tmp/.local/share\" && cp -a {home}/.local/share/com.vercel.cli \"$tmp/.local/share/\" && chmod -R u+w \"$tmp/.local/share/com.vercel.cli\" && HOME=\"$tmp\" vercel whoami; code=$?; rm -rf \"$tmp\"; exit $code"
+            f"tmp=$(mktemp -d); if [ -s {token_file} ]; then token=$(node -e 'process.stdout.write(JSON.parse(require(\"fs\").readFileSync(process.argv[1], \"utf8\")).token)' {token_file}) && HOME=\"$tmp\" vercel whoami --token \"$token\"; code=$?; rm -rf \"$tmp\"; exit $code; else mkdir -p \"$tmp/.local/share\" && cp -a {home}/.local/share/com.vercel.cli \"$tmp/.local/share/\" && chmod -R u+w \"$tmp/.local/share/com.vercel.cli\" && HOME=\"$tmp\" vercel whoami; code=$?; rm -rf \"$tmp\"; exit $code; fi"
         ]
 
     def _auth_path(self) -> Path | None:
@@ -78,6 +88,26 @@ class VercelProvider(IntegrationProvider):
             if path.exists():
                 return path
         return None
+
+    def _token_path(self) -> Path:
+        return Path.home() / ".lcp" / "secrets" / "vercel_token"
+
+    def _token(self) -> str | None:
+        path = self._token_path()
+        if not path.exists():
+            return None
+        token = path.read_text(encoding="utf-8").strip()
+        return token or None
+
+    def _token_auth_path(self) -> Path:
+        return Path.home() / ".lcp" / "secrets" / "vercel-auth"
+
+    def _write_token_auth_snapshot(self, path: Path, token: str) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+        path.chmod(0o700)
+        token_file = path / "lcp-token.json"
+        token_file.write_text(json.dumps({"token": token}) + "\n", encoding="utf-8")
+        token_file.chmod(0o600)
 
     def _parse_version(self, text: str) -> str | None:
         match = re.search(r"\d+(?:\.\d+)+(?:[-+][0-9A-Za-z.-]+)?", text)

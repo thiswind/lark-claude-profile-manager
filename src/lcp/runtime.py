@@ -12,6 +12,7 @@ DEFAULT_RUNTIME_IMAGE = f"lcp/runtime:{__version__}-{RUNTIME_OS_TAG}"
 class RuntimeTool(BaseModel):
     package: str
     version: str = "latest"
+    versionLockDependency: str | None = None
 
 
 class RuntimeManifest(BaseModel):
@@ -24,9 +25,9 @@ class RuntimeManifest(BaseModel):
 def default_runtime_manifest() -> RuntimeManifest:
     return RuntimeManifest(
         tools={
-            "claude-code": RuntimeTool(package="@anthropic-ai/claude-code"),
-            "lark-cli": RuntimeTool(package="@larksuite/cli"),
-            "lark-channel-bridge": RuntimeTool(package="lark-channel-bridge"),
+            "claude-code": RuntimeTool(package="@anthropic-ai/claude-code", versionLockDependency="claude-code"),
+            "lark-cli": RuntimeTool(package="@larksuite/cli", versionLockDependency="lark-cli"),
+            "lark-channel-bridge": RuntimeTool(package="lark-channel-bridge", versionLockDependency="feishu-claude-code-bridge"),
         }
     )
 

@@ -1,4 +1,8 @@
+import shlex
+
 from lcp.installer import CLAUDE_NATIVE_FIXUP, NPM_CACHE_ARG, git_identity_setup_command, install_runtime
+from lcp.lark_cli_wrapper import LARK_CLI_WRAPPER_INSTALL
+from lcp.version_lock import dependency_npm_install_spec
 from lcp.models import default_profile
 
 
@@ -28,14 +32,17 @@ def test_install_runtime_runs_claude_native_fixup(tmp_path) -> None:
 
     results = install_runtime(adapter, profile)
 
-    assert len(results) == 7
+    assert len(results) == 8
     assert not any("git config --global user.name" in command for command in adapter.user_commands)
-    claude_install = f"npm install -g @anthropic-ai/claude-code --include=optional {NPM_CACHE_ARG}"
+    claude_install = f"npm install -g {dependency_npm_install_spec('@anthropic-ai/claude-code')} --include=optional {NPM_CACHE_ARG}"
     assert claude_install in adapter.user_commands
     assert CLAUDE_NATIVE_FIXUP in adapter.user_commands
     assert adapter.user_commands.index(CLAUDE_NATIVE_FIXUP) == adapter.user_commands.index(claude_install) + 1
-    assert f"npm install -g @larksuite/cli {NPM_CACHE_ARG}" in adapter.user_commands
-    assert f"npm install -g lark-channel-bridge {NPM_CACHE_ARG}" in adapter.user_commands
+    lark_cli_install = f"npm install -g {dependency_npm_install_spec('@larksuite/cli')} {NPM_CACHE_ARG}"
+    assert lark_cli_install in adapter.user_commands
+    assert LARK_CLI_WRAPPER_INSTALL in adapter.user_commands
+    assert adapter.user_commands.index(LARK_CLI_WRAPPER_INSTALL) == adapter.user_commands.index(lark_cli_install) + 1
+    assert f"npm install -g {shlex.quote(dependency_npm_install_spec('lark-channel-bridge'))} {NPM_CACHE_ARG}" in adapter.user_commands
 
 
 def test_install_runtime_configures_profile_git_identity(tmp_path) -> None:
@@ -54,5 +61,5 @@ def test_install_runtime_configures_profile_git_identity(tmp_path) -> None:
 
     results = install_runtime(adapter, profile)
 
-    assert len(results) == 8
+    assert len(results) == 9
     assert git_identity_setup_command(profile) in adapter.user_commands

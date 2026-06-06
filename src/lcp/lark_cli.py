@@ -1,12 +1,16 @@
+import shlex
+
 from .docker_adapter import DockerAdapter, ExecResult
+from .lark_cli_wrapper import LARK_CLI_WRAPPER_INSTALL
 from .models import Profile
 
 
 LARK_CLI_BOT_IDENTITY_CHECK = r"""
 test -s "$HOME/.lark-channel/config.json" && \
 test -s "$HOME/.lark-cli/lark-channel/config.json" && \
-(LARK_CHANNEL=1 lark-cli auth status --json >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err || \
- LARK_CHANNEL=1 lark-cli auth status >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err) && \
+grep -q 'LCP managed lark-cli wrapper' "$(command -v lark-cli)" && \
+(lark-cli auth status --json >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err || \
+ lark-cli auth status >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err) && \
 node -e '
 const fs = require("fs");
 const home = process.env.HOME;
@@ -57,7 +61,9 @@ if [ ! -s "$HOME/.lark-channel/config.json" ]; then
   echo "missing-config: run 'lcp bridge {profile.name} run' first to complete the QR-code setup"
   exit 2
 fi
-LARK_CHANNEL=1 lark-cli config bind --source lark-channel --identity bot-only --force &&
-LARK_CHANNEL=1 lark-cli config default-as bot
+bash -lc {shlex.quote(LARK_CLI_WRAPPER_INSTALL)} &&
+lark-cli config bind --source lark-channel --identity bot-only --force &&
+lark-cli config default-as bot &&
+lark-cli config strict-mode bot
 """.strip()
     return adapter.exec(profile, command)

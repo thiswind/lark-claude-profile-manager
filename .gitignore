@@ -5,6 +5,9 @@ coverage/
 .env.*
 !.env.example
 .local-plan/
+.claude/
+.gitmodules
+cursor-agent-team/
 *.log
 .venv/
 __pycache__/
