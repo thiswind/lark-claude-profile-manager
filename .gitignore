@@ -13,3 +13,4 @@ cursor-agent-team/
 __pycache__/
 .pytest_cache/
 *.egg-info/
+docs/wiki/
