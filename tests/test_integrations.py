@@ -128,6 +128,34 @@ def test_github_install_falls_back_when_exact_apt_version_is_unavailable(tmp_pat
     assert "apt-get -o Acquire::Retries=3 install -y gh))" in commands[0]
 
 
+def test_github_provider_configures_git_credential_helper(tmp_path: Path) -> None:
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+
+    commands = GitHubProvider().configure_commands(profile)
+
+    assert commands == ["gh auth setup-git"]
+
+
+def test_github_provider_verifies_git_credential_helper(tmp_path: Path) -> None:
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+
+    commands = GitHubProvider().verify_commands(profile)
+
+    assert commands == [
+        "gh --version",
+        "gh auth status",
+        "git config --global --get-all credential.https://github.com.helper | grep -F 'gh auth git-credential'",
+    ]
+
+
+def test_github_provider_external_verify_smoke_tests_https_git(tmp_path: Path) -> None:
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+
+    commands = GitHubProvider().verify_commands(profile, external=True)
+
+    assert "git ls-remote https://github.com/thiswind/lark-claude-profile-manager.git HEAD >/dev/null" in commands
+
+
 def test_ssh_provider_prepares_least_privilege_snapshot(tmp_path: Path) -> None:
     store = cli.LcpStore(tmp_path / ".lcp")
     profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
