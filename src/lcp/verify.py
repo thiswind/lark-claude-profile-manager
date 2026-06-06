@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import shlex
 
+from .bridge import bridge_status
 from .docker_adapter import DockerAdapter
 from .lark_cli import LARK_CLI_BOT_IDENTITY_CHECK
 from .models import Profile
@@ -37,6 +38,8 @@ def verify_profile(adapter: DockerAdapter, profile: Profile, run_claude: bool = 
     run("lark_cli_bot_identity", LARK_CLI_BOT_IDENTITY_CHECK)
     run("bridge_version", "lark-channel-bridge --version")
     run("bridge_help", "lark-channel-bridge --help >/tmp/lcp-bridge-help.txt && test -s /tmp/lcp-bridge-help.txt")
+    runtime_status = bridge_status(adapter, profile)
+    checks.append(CheckResult("bridge_runtime", runtime_status.running, runtime_status.detail))
 
     return checks
 

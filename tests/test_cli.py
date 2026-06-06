@@ -666,7 +666,13 @@ def test_profile_verify_checks_lark_cli_bot_identity(monkeypatch, tmp_path: Path
     def fake_verify(adapter, profile, run_claude=True):
         from lcp.verify import verify_profile
 
-        adapter.exec = lambda profile, command: commands.append(command) or ExecResult(0, "ok")
+        def fake_exec(profile, command):
+            commands.append(command)
+            if "/logs/bridge-supervisor.pid" in command:
+                return ExecResult(0, "running:123:456:root")
+            return ExecResult(0, "ok")
+
+        adapter.exec = fake_exec
         return verify_profile(adapter, profile, run_claude=False)
 
     monkeypatch.setattr(cli, "LcpStore", lambda: store)
@@ -677,6 +683,7 @@ def test_profile_verify_checks_lark_cli_bot_identity(monkeypatch, tmp_path: Path
 
     assert result.exit_code == 0
     assert "ok: lark_cli_bot_identity" in result.output
+    assert "ok: bridge_runtime" in result.output
     assert any(".lark-cli/lark-channel/config.json" in command for command in commands)
 
 
@@ -718,6 +725,23 @@ def test_profile_verify_git_identity_failure_shows_integration_reapply_hint(monk
     assert "failed: git_identity" in result.output
     assert "lcp integration apply project1 --yes" in result.output
     assert "lcp integration verify project1 git" in result.output
+
+
+def test_profile_verify_bridge_runtime_failure_shows_restart_hint(monkeypatch, tmp_path: Path) -> None:
+    from lcp.verify import CheckResult
+
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer()
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "verify_profile", lambda adapter, profile, run_claude=True: [CheckResult("bridge_runtime", False, "stopped")])
+
+    result = runner.invoke(cli.app, ["profile", "verify", "project1", "--no-run-claude"])
+
+    assert result.exit_code == 1
+    assert "failed: bridge_runtime" in result.output
+    assert "lcp bridge project1 restart" in result.output
+    assert "Lark/Feishu entry point" in result.output
 
 
 def test_bridge_run_stays_foreground_proxy(monkeypatch, tmp_path: Path) -> None:

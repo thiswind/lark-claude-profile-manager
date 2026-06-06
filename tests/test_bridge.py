@@ -37,15 +37,16 @@ def test_bridge_status_running(tmp_path) -> None:
     assert status.pid == "123"
 
 
-def test_bridge_status_unhealthy_supervisor_is_not_running(tmp_path) -> None:
+def test_bridge_status_degraded_supervisor_is_not_running(tmp_path) -> None:
     profile = make_profile(tmp_path)
-    adapter = FakeAdapter(["unhealthy:123:no bridge run process"])
+    adapter = FakeAdapter(["degraded:123:no bridge run process:root"])
 
     status = bridge_status(adapter, profile)
 
     assert not status.running
-    assert status.pid is None
-    assert "unhealthy" in status.detail
+    assert status.pid == "123"
+    assert status.state == "degraded"
+    assert "degraded" in status.detail
 
 
 def test_start_bridge_skips_when_already_running(tmp_path) -> None:
@@ -68,7 +69,9 @@ def test_start_bridge_launches_supervisor(tmp_path) -> None:
     assert status.running
     assert status.pid == "456"
     assert "if [ ! -s \"$HOME/.lark-channel/config.json\" ]" in adapter.commands[1]
-    assert "nohup bash -lc" in adapter.commands[1]
+    assert "sudo tee /usr/local/bin/lcp-bridge-sv" in adapter.commands[1]
+    assert "sudo bash -c 'nohup /usr/local/bin/lcp-bridge-sv" in adapter.commands[1]
+    assert "sudo -H -u \"$run_user\"" in adapter.commands[1]
     assert "lark-channel-bridge run" in adapter.commands[1]
     assert "for attempt in $(seq 1 60)" in adapter.commands[1]
     assert "no bridge run process" in adapter.commands[1]
@@ -126,4 +129,5 @@ def test_stop_bridge_kills_supervisor_and_bridge(tmp_path) -> None:
     status = stop_bridge(adapter, profile)
 
     assert not status.running
+    assert "sudo kill $(cat /logs/bridge-supervisor.pid)" in adapter.commands[0]
     assert "pkill -f '^node .*/lark-channel-bridge run($| )'" in adapter.commands[0]

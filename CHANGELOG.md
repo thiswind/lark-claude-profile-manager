@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Run managed bridge supervision through a root-owned `/usr/local/bin/lcp-bridge-sv` control process that restarts the profile-user bridge child after broad user-space kills.
+- Report bridge state as `running`, `degraded`, or `stopped`, and add `bridge_runtime` to profile verification with a restart repair hint.
+
 ## 0.2.5 - 2026-06-06
 
 - Ensure rebuilt/recreated profile containers repair user-owned home parent directories before user-space tools run, preventing read-only integration mounts from leaving `.local` parents owned by root.

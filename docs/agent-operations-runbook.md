@@ -614,14 +614,16 @@ What LCP does:
    ```
 
 5. Fails fast if bridge config is missing or `lark-cli` cannot be put into `bot-only` / default `bot` state.
-6. Starts a supervisor loop inside the container.
-7. The supervisor loop runs:
+6. Installs a root-owned bridge supervisor at `/usr/local/bin/lcp-bridge-sv`.
+7. Starts that supervisor in the background.
+8. The supervisor runs the bridge child as the profile user:
 
    ```bash
    lark-channel-bridge run
    ```
 
-8. Bridge logs go to:
+9. If the bridge child dies, the supervisor restarts it.
+10. Bridge logs go to:
 
    ```text
    /logs/bridge.log
@@ -711,8 +713,10 @@ lcp profile list
 
 Expected bridge status behavior:
 
-- A valid running bridge status must identify the real `lark-channel-bridge run` child process.
-- Do not treat the supervisor shell alone as proof that the bridge is healthy.
+- `running` means the supervisor and the real `lark-channel-bridge run` child are both alive.
+- `degraded` means the supervisor is alive but the bridge child is not currently alive.
+- `stopped` means the managed supervisor is not alive.
+- Do not treat the supervisor alone as proof that the bridge is healthy.
 
 ## Verify a profile
 
@@ -740,6 +744,7 @@ Important checks:
 - `lark-cli` availability.
 - `lark_cli_bot_identity`.
 - `lark-channel-bridge` availability.
+- `bridge_runtime`, which confirms the Lark/Feishu entry point is actually alive.
 
 If `lark_cli_bot_identity` fails:
 
@@ -756,6 +761,22 @@ If `lark_cli_bot_identity` fails:
    ```
 
 3. If it still fails, inspect the output. It should indicate missing config, app mismatch, or identity mismatch.
+
+If `bridge_runtime` fails:
+
+1. Restart the managed bridge:
+
+   ```bash
+   lcp bridge <name> restart
+   ```
+
+2. Verify again:
+
+   ```bash
+   lcp profile verify <name> --no-run-claude
+   ```
+
+3. If it still fails, inspect bridge logs before changing container state.
 
 ## Logs
 

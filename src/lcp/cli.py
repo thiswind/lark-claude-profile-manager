@@ -184,6 +184,10 @@ def _create_profile(name: str, desktop: str | None, install: bool) -> None:
                 raise typer.Exit(result.exit_code)
 
 
+def _bridge_state_label(status) -> str:
+    return getattr(status, "state", "running" if status.running else "stopped")
+
+
 def _list_profiles() -> None:
     store = LcpStore()
     adapter = DockerAdapter(store)
@@ -200,7 +204,7 @@ def _list_profiles() -> None:
         bridge = "-"
         if container:
             status = bridge_status(adapter, profile)
-            bridge = "running" if status.running else "stopped"
+            bridge = _bridge_state_label(status)
         table.add_row(name, profile.container.name, container_status, bridge, profile_bot_identity(store, profile).label)
     console.print(table)
 
@@ -214,7 +218,7 @@ def _show_profile_status(name: str) -> None:
     typer.echo(f"name: {profile.name}")
     typer.echo(f"container: {container.name}")
     typer.echo(f"status: {container.status}")
-    typer.echo(f"bridge: {'running' if status.running else 'stopped'}")
+    typer.echo(f"bridge: {_bridge_state_label(status)}")
     typer.echo(f"bot: {profile_bot_identity(store, profile).label}")
     if status.pid:
         typer.echo(f"bridge pid: {status.pid}")
@@ -243,6 +247,8 @@ def _verify_profile_command(name: str, run_claude: bool) -> None:
                 typer.echo(f"hint: run `lcp bridge {name} run` for first-time bot setup, or `lcp bridge {name} bind-lark-cli` after bot credentials already exist")
             if check.name == "git_identity" and profile.integrations.providers.get("git") and profile.integrations.providers["git"].desired.enabled:
                 typer.echo(f"hint: run `lcp integration apply {name} --yes` to reapply the configured git identity, then `lcp integration verify {name} git`")
+            if check.name == "bridge_runtime":
+                typer.echo(f"hint: run `lcp bridge {name} restart` to repair the bridge supervisor and restore the Lark/Feishu entry point")
     if failures:
         raise typer.Exit(1)
 
