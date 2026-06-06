@@ -19,7 +19,7 @@ def test_runtime_dockerfile_installs_lcp_runtime_tools() -> None:
     assert "@larksuite/cli@1.0.46" in text
     assert "LCP managed lark-cli wrapper" in text
     assert "git clone https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git" in text
-    assert "git checkout 4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc" in text
+    assert "git checkout 8468b1c63f0109aeedac28eb6e3d789b22a228f9" in text
     assert "npm install --include=dev" in text
     assert "npm run build" in text
     assert "npm pack --pack-destination /cache/tmp" in text

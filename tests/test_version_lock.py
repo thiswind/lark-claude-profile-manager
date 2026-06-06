@@ -13,8 +13,8 @@ def test_load_version_lock_matches_package_version() -> None:
 
 
 def test_dependency_npm_install_spec_uses_controlled_commit() -> None:
-    assert dependency_npm_install_spec("feishu-claude-code-bridge") == "git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git#4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc"
-    assert dependency_npm_install_spec("lark-channel-bridge") == "git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git#4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc"
+    assert dependency_npm_install_spec("feishu-claude-code-bridge") == "git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git#8468b1c63f0109aeedac28eb6e3d789b22a228f9"
+    assert dependency_npm_install_spec("lark-channel-bridge") == "git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git#8468b1c63f0109aeedac28eb6e3d789b22a228f9"
     assert dependency_npm_install_spec("lark-cli") == "@larksuite/cli@1.0.46"
 
 

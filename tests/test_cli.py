@@ -345,7 +345,7 @@ def test_version_lock_show_lists_locked_dependencies() -> None:
     assert "feishu-claude-code-bridge:" in result.output
     assert "policy: controlled-fork" in result.output
     assert "repo: https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2" in result.output
-    assert "tag: lcp-0.2.2" in result.output
+    assert "tag: lcp-0.2.6-bridge-0.2.2" in result.output
     assert "lark-cli:" in result.output
 
 
@@ -365,7 +365,7 @@ def test_runtime_apply_dry_run_shows_resolved_specs(monkeypatch, tmp_path: Path)
     assert result.exit_code == 0
     assert "claude-code: @anthropic-ai/claude-code@2.1.150" in result.output
     assert "lark-cli: @larksuite/cli@1.0.46" in result.output
-    assert "lark-channel-bridge: git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git#4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc" in result.output
+    assert "lark-channel-bridge: git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2.git#8468b1c63f0109aeedac28eb6e3d789b22a228f9" in result.output
     assert "lark-channel-bridge: lark-channel-bridge@latest" not in result.output
 
 

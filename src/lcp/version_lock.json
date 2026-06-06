@@ -9,20 +9,20 @@
       "risk": "critical",
       "policy": "controlled-fork",
       "package": "lark-channel-bridge",
-      "version": "0.1.32",
+      "version": "0.2.2",
       "controlled": {
         "repo": "https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2",
-        "tag": "lcp-0.2.2",
-        "commit": "4c9c47c5b32f6353bc9d86fcfc45813cdcdf96cc"
+        "tag": "lcp-0.2.6-bridge-0.2.2",
+        "commit": "8468b1c63f0109aeedac28eb6e3d789b22a228f9"
       },
       "upstream": {
-        "repo": "https://github.com/zarazhangrui/feishu-claude-code-bridge",
+        "repo": "https://github.com/zarazhangrui/lark-coding-agent-bridge",
         "branch": "main",
         "tag": null,
-        "commit": "bdc844b7115797fd6d2b56f2bdd71491ee1b06bb"
+        "commit": "8468b1c63f0109aeedac28eb6e3d789b22a228f9"
       },
       "patches": [
-        "LCP-controlled fork patch: add package.json prepare script so npm Git installs build dist artifacts."
+        "Upstream now includes the package.json prepare script needed for npm Git installs to build dist artifacts."
       ],
       "validation": {
         "lcpVersion": "0.2.6",
