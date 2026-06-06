@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-- Run managed bridge supervision through a root-owned `/usr/local/bin/lcp-bridge-sv` control process that restarts the profile-user bridge child after broad user-space kills.
+## 0.2.6 - 2026-06-06
+
+- Harden managed bridge recovery by running supervision through a root-owned `/usr/local/bin/lcp-bridge-sv` control process that restarts the profile-user bridge child after broad user-space kills.
 - Report bridge state as `running`, `degraded`, or `stopped`, and add `bridge_runtime` to profile verification with a restart repair hint.
+- Validate the recovery path on real profiles: old supervisors are detected as degraded, bridge node-child kills recover automatically, and all local profile bridges verify as running.
 
 ## 0.2.5 - 2026-06-06
 

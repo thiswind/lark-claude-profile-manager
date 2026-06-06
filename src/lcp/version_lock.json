@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lcpVersion": "0.2.5",
+  "lcpVersion": "0.2.6",
   "generatedAt": "2026-06-06",
   "dependencies": [
     {
@@ -25,7 +25,7 @@
         "LCP-controlled fork patch: add package.json prepare script so npm Git installs build dist artifacts."
       ],
       "validation": {
-        "lcpVersion": "0.2.5",
+        "lcpVersion": "0.2.6",
         "validatedAt": "2026-06-06",
         "profiles": [
           "teaching_daily"
@@ -47,7 +47,7 @@
       "version": "1.0.46",
       "patches": [],
       "validation": {
-        "lcpVersion": "0.2.5",
+        "lcpVersion": "0.2.6",
         "validatedAt": "2026-06-06",
         "profiles": [
           "teaching_daily"
