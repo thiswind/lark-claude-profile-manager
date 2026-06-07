@@ -685,6 +685,7 @@ def test_profile_verify_checks_lark_cli_bot_identity(monkeypatch, tmp_path: Path
     assert "ok: lark_cli_bot_identity" in result.output
     assert "ok: bridge_runtime" in result.output
     assert any(".lark-cli/lark-channel/config.json" in command for command in commands)
+    assert any("lark-cli auth status --verify" in command for command in commands)
 
 
 def test_profile_verify_lark_cli_bot_identity_failure_shows_hint(monkeypatch, tmp_path: Path) -> None:
@@ -702,6 +703,7 @@ def test_profile_verify_lark_cli_bot_identity_failure_shows_hint(monkeypatch, tm
     assert "failed: lark_cli_bot_identity" in result.output
     assert "lcp bridge project1 run" in result.output
     assert "lcp bridge project1 bind-lark-cli" in result.output
+    assert "invalid_client/code 10003" in result.output
 
 
 def test_profile_verify_git_identity_failure_shows_integration_reapply_hint(monkeypatch, tmp_path: Path) -> None:

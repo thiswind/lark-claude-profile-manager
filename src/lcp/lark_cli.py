@@ -11,6 +11,8 @@ test -s "$HOME/.lark-cli/lark-channel/config.json" && \
 grep -q 'LCP managed lark-cli wrapper' "$(command -v lark-cli)" && \
 (lark-cli auth status --json >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err || \
  lark-cli auth status >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err) && \
+(lark-cli auth status --verify >/tmp/lcp-lark-cli-auth-verify.out 2>/tmp/lcp-lark-cli-auth-verify.err || \
+ { cat /tmp/lcp-lark-cli-auth-verify.out; cat /tmp/lcp-lark-cli-auth-verify.err >&2; exit 1; }) && \
 node -e '
 const fs = require("fs");
 const home = process.env.HOME;
@@ -62,6 +64,7 @@ if [ ! -s "$HOME/.lark-channel/config.json" ]; then
   exit 2
 fi
 bash -lc {shlex.quote(LARK_CLI_WRAPPER_INSTALL)} &&
+{{ lark-cli config remove >/tmp/lcp-lark-cli-config-remove.out 2>/tmp/lcp-lark-cli-config-remove.err || true; }} &&
 lark-cli config bind --source lark-channel --identity bot-only --force &&
 lark-cli config default-as bot &&
 lark-cli config strict-mode bot
