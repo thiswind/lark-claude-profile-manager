@@ -365,6 +365,54 @@ tree, rg, jq, file, ip, ss, nc, dig, nslookup, traceroute
 
 Building shared images does not recreate existing profile containers. Use profile rebuild after reviewing its dry-run output. If an existing profile container does not have the current troubleshooting tools, rebuild that profile after reviewing the dry-run output.
 
+## Maintain 0.2.6 stable profile containers
+
+Treat existing 0.2.6 stable profile containers and images as long-lived operational assets.
+
+Default policy:
+
+1. Do not rebuild or recompile existing profile images for routine maintenance.
+2. Rebuild only for newly created profiles, runtime image changes that the operator explicitly approves, or a targeted recovery plan where rebuild is the safest path.
+3. Prefer in-container repair, container recover/recreate with the same effective image, or targeted config and mount changes.
+4. Keep stopped rollback or backup containers for a retention window after risky recreate work. Do not delete them immediately unless the operator explicitly accepts the loss of rollback state.
+
+Use recover/recreate without image rebuild when host bind mounts or create-time container options must be refreshed. Common cases include stale single-file bind mounts after host `~/.claude.json` replacement and adding read-only host font mounts.
+
+Recover/recreate checklist:
+
+1. Confirm the profile is not actively processing a bridge/Claude task.
+2. Inspect the current container image, user, working directory, labels, restart policy, and bind mounts before changing anything.
+3. Preserve profile-local state mounts, especially workspace, `~/.lark-channel`, `~/.lark-cli`, logs, cache, Claude config mounts, and integration snapshot mounts.
+4. If the running container may contain installed packages or configuration in its writable layer, commit or snapshot the current container to a reusable image before recreate.
+5. Recreate from that committed current-container image, not from the original base/profile image, when preserving accumulated in-container state matters.
+6. Add or adjust only the required create-time options, such as extra bind mounts.
+7. Preserve the same container name pattern and restart policy expected by LCP.
+
+Do not use manual `docker run ... <base-image>` as a shortcut for an existing stable profile. Recreating from a base image can lose accumulated packages and configuration from the container writable layer.
+
+After recover/recreate, restore and verify operational state in order:
+
+1. Reapply or restore git identity if container-global config was reset.
+2. Run `lcp bridge <profile> bind-lark-cli` to refresh the profile-local lark-cli bot binding.
+3. Restart the bridge with `lcp bridge <profile> restart`.
+4. Run `lcp profile verify <profile> --no-run-claude`.
+5. When bot credentials were involved, run a real lark-cli verification/API probe inside the container.
+
+Example lark-cli probes:
+
+```bash
+docker exec --user <profile-user> lcp-<profile> lark-cli auth status --verify
+docker exec --user <profile-user> lcp-<profile> lark-cli im +chat-list --page-size 1
+```
+
+Windows fonts:
+
+1. Mount real host font directories read-only. On WSL/Windows, the main system font directory is usually `C:\Windows\Fonts`, visible as `/mnt/c/Windows/Fonts` inside the container.
+2. Optional Office or user font directories can also be mounted read-only when present.
+3. Font file visibility and fontconfig are separate issues. Mounting fonts makes files visible by path; `fontconfig` and `fc-cache` are only needed for tools that resolve fonts by family name.
+
+Related operational issues: #18, #19, #21, #17, and #20.
+
 ## Rebuild profile containers safely
 
 Use this when a profile image or LCP runtime image changed:
