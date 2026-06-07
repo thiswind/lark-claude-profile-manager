@@ -435,6 +435,39 @@ lcp profile cleanup-rollbacks --all --yes
 
 Do not clean rollbacks as part of rebuild itself. The cleanup command is intentionally separate so the operator can keep rollback containers until verification is complete.
 
+## Shared Claude MCP config in profile containers
+
+LCP bind-mounts host Claude Code state into profile containers, including `~/.claude` and the single-file `~/.claude.json` mount. This makes host-level Claude MCP configuration visible inside profiles, but it does not make host-only MCP server commands available inside the container.
+
+Use this section after changing host `~/.claude.json`, especially after adding or editing MCP servers.
+
+Key rules:
+
+1. A profile container may need `lcp profile recover <profile> --yes` or `lcp profile rebuild <profile> --yes` after host `~/.claude.json` changes so Docker refreshes the single-file bind mount.
+2. MCP server commands are executed inside the profile container, not on the host.
+3. A command that exists only on the host, such as host-installed `uvx`, can still fail in profiles even though the shared MCP config is visible.
+4. Prefer MCP server commands backed by tools already installed in the runtime image. Current profiles include Node.js and `npx`, so an MCP configured as `npx -y <package>` is usually more portable than a host-only command.
+5. If an MCP server requires another command such as `uvx`, provision that command in the runtime image or profile image before treating the MCP config as healthy.
+
+Compatibility check:
+
+```bash
+docker exec --user <profile-user> lcp-<profile> sh -lc 'command -v npx && claude mcp list'
+docker exec --user <profile-user> lcp-<profile> sh -lc 'command -v uvx || true'
+```
+
+At least one refreshed profile should pass:
+
+```bash
+docker exec --user <profile-user> lcp-<profile> claude mcp list
+```
+
+Interpretation:
+
+- `✓ Connected` means the config and the container-side command are both working.
+- `✗ Failed to connect` with `command not found` or an absent `command -v <tool>` means the MCP command dependency is missing inside the profile container.
+- This is not by itself a profile health failure; it is a shared host config versus container runtime compatibility issue.
+
 ## Initialize host LCP configuration
 
 Use this when `~/.lcp/config.json` is missing or the user asks to initialize a host:
