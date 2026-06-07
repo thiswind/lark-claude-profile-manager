@@ -64,7 +64,6 @@ if [ ! -s "$HOME/.lark-channel/config.json" ]; then
   exit 2
 fi
 bash -lc {shlex.quote(LARK_CLI_WRAPPER_INSTALL)} &&
-{{ lark-cli config remove >/tmp/lcp-lark-cli-config-remove.out 2>/tmp/lcp-lark-cli-config-remove.err || true; }} &&
 lark-cli config bind --source lark-channel --identity bot-only --force &&
 lark-cli config default-as bot &&
 lark-cli config strict-mode bot

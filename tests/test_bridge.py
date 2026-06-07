@@ -107,8 +107,6 @@ def test_bind_lark_cli_repairs_to_bot_only(tmp_path, capsys) -> None:
 
     assert "bound: cli_123" in capsys.readouterr().out
     assert len(adapter.commands) == 2
-    assert "lark-cli config remove" in adapter.commands[1]
-    assert adapter.commands[1].index("lark-cli config remove") < adapter.commands[1].index("lark-cli config bind")
     assert "lark-cli config bind --source lark-channel --identity bot-only --force" in adapter.commands[1]
     assert "lark-cli config default-as bot" in adapter.commands[1]
     assert "lark-cli config strict-mode bot" in adapter.commands[1]

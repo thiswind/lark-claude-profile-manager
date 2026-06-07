@@ -87,8 +87,6 @@ def test_bind_lark_cli_repairs_wrapper_and_strict_bot_mode(tmp_path) -> None:
     bind_lark_cli(adapter, profile)
 
     assert "LCP managed lark-cli wrapper" in adapter.command
-    assert "lark-cli config remove" in adapter.command
-    assert adapter.command.index("lark-cli config remove") < adapter.command.index("lark-cli config bind")
     assert "lark-cli config bind --source lark-channel --identity bot-only --force" in adapter.command
     assert "lark-cli config default-as bot" in adapter.command
     assert "lark-cli config strict-mode bot" in adapter.command

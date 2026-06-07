@@ -690,6 +690,17 @@ Expected result:
 - The bot identity is ready.
 - `user: missing` is acceptable unless the task explicitly needs user OAuth.
 
+If `lcp profile verify <name> --no-run-claude` fails `lark_cli_bot_identity` with `invalid_client` or code `10003`, do not assume `bind-lark-cli` alone can repair it. First confirm the underlying Lark Channel app id and secret are valid, then deliberately clear stale profile-local `lark-cli` config and rebind:
+
+```bash
+docker exec --user <profile-user> lcp-<name> lark-cli config remove
+lcp bridge <name> bind-lark-cli
+lcp bridge <name> restart
+docker exec --user <profile-user> lcp-<name> lark-cli auth status --verify
+```
+
+Use this as an explicit repair operation, not an automatic default. Clearing `lark-cli` config changes profile-local state and should be done only when verification proves the existing binding is stale or invalid.
+
 If manual bind fails with missing config:
 
 ```text
