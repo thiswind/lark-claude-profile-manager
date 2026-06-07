@@ -396,7 +396,8 @@ After recover/recreate, restore and verify operational state in order:
 2. Run `lcp bridge <profile> bind-lark-cli` to refresh the profile-local lark-cli bot binding.
 3. Restart the bridge with `lcp bridge <profile> restart`.
 4. Run `lcp profile verify <profile> --no-run-claude`.
-5. When bot credentials were involved, run a real lark-cli verification/API probe inside the container.
+5. List active providers with `lcp integration status <profile>` and verify every active provider.
+6. When bot credentials or provider tools were involved, run real read-only API probes inside the container.
 
 Example lark-cli probes:
 
@@ -405,11 +406,44 @@ docker exec --user <profile-user> lcp-<profile> lark-cli auth status --verify
 docker exec --user <profile-user> lcp-<profile> lark-cli im +chat-list --page-size 1
 ```
 
-Windows fonts:
+Example provider checks:
+
+```bash
+lcp integration status <profile>
+lcp integration verify <profile> github
+lcp integration verify <profile> vercel
+```
+
+Treat an active provider as suspect when the current container was created after the provider `effective.appliedAt` timestamp. A recover/recreate can preserve read-only auth snapshot mounts while losing provider CLI binaries or writable configuration that had been installed into the old container filesystem.
+
+If provider auth snapshots are mounted but provider CLI tools are missing, repair in place or reapply the integration without image rebuild/recreate unless the operator explicitly approves a recreate.
+
+Provider direct-use checks:
+
+1. Provider verification should not be the only check for tools users invoke directly.
+2. Some provider verification commands intentionally copy read-only auth snapshots into a temporary writable HOME before calling the CLI.
+3. Direct user invocation can still fail if the CLI tries to write into a read-only auth snapshot and reports errors such as `EROFS: read-only file system`.
+4. For such tools, install a safe wrapper or document the required writable temp HOME/token invocation.
+5. Do not write wrapper content through an existing symlink. Remove the symlink first or write to a separate wrapper path so the real CLI target is not overwritten.
+
+After stable-profile in-place repair:
+
+1. Install or repair required CLIs and wrappers inside the running container.
+2. Verify `lcp profile verify <profile> --no-run-claude`.
+3. Verify every active provider.
+4. Run real read-only probes for tools users depend on.
+5. Commit the repaired running container back to its profile image tag before calling the profile healthy, otherwise future recover/recreate can lose the repair.
+6. Optionally verify the committed image tag in a disposable container with the required create-time binds.
+
+Windows fonts and extra mounts:
 
 1. Mount real host font directories read-only. On WSL/Windows, the main system font directory is usually `C:\Windows\Fonts`, visible as `/mnt/c/Windows/Fonts` inside the container.
 2. Optional Office or user font directories can also be mounted read-only when present.
-3. Font file visibility and fontconfig are separate issues. Mounting fonts makes files visible by path; `fontconfig` and `fc-cache` are only needed for tools that resolve fonts by family name.
+3. Host `~/.ssh` mounts should be opt-in per profile, not global, and should default to read-only unless the operator explicitly requests write access.
+4. Before adding an extra mount to an existing stable profile, commit the current running container to the profile image tag, rename the old container to a rollback name, recreate from the just-committed image, and add only the requested mount.
+5. After verifying the recreated container, commit it back to the profile image tag so future recreates preserve in-container repairs.
+6. Docker image commit preserves installed tools and in-container config, but it does not preserve bind mounts. Any manual bind mount must be represented in profile state or faithfully reapplied on every future recover/recreate.
+7. Font file visibility and fontconfig are separate issues. Mounting fonts makes files visible by path; `fontconfig` and `fc-cache` are only needed for tools that resolve fonts by family name.
 
 Related operational issues: #18, #19, #21, #17, and #20.
 
