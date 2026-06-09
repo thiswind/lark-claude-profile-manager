@@ -1,7 +1,6 @@
-import shlex
-
 from lcp.installer import CLAUDE_NATIVE_FIXUP, NPM_CACHE_ARG, git_identity_setup_command, install_runtime
 from lcp.lark_cli_wrapper import LARK_CLI_WRAPPER_INSTALL
+from lcp.npm_package import controlled_dependency_pack_install_command
 from lcp.version_lock import dependency_npm_install_spec
 from lcp.models import default_profile
 
@@ -42,7 +41,11 @@ def test_install_runtime_runs_claude_native_fixup(tmp_path) -> None:
     assert lark_cli_install in adapter.user_commands
     assert LARK_CLI_WRAPPER_INSTALL in adapter.user_commands
     assert adapter.user_commands.index(LARK_CLI_WRAPPER_INSTALL) == adapter.user_commands.index(lark_cli_install) + 1
-    assert f"npm install -g {shlex.quote(dependency_npm_install_spec('lark-channel-bridge'))} {NPM_CACHE_ARG}" in adapter.user_commands
+    bridge_install = controlled_dependency_pack_install_command("lark-channel-bridge", "/cache/tmp/lark-channel-bridge.tgz")
+    assert bridge_install in adapter.user_commands
+    assert not any("npm install -g git+https://github.com/thiswind/feishu-claude-code-bridge-lcp-0.2" in command for command in adapter.user_commands)
+    assert "npm install --include=dev --cache /cache/npm" in bridge_install
+    assert "npm pack --pack-destination /cache/tmp" in bridge_install
 
 
 def test_install_runtime_configures_profile_git_identity(tmp_path) -> None:

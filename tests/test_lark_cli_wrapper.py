@@ -28,6 +28,7 @@ def test_lark_cli_bot_identity_check_uses_plain_wrapped_lark_cli() -> None:
     assert json_status in LARK_CLI_BOT_IDENTITY_CHECK
     assert plain_status in LARK_CLI_BOT_IDENTITY_CHECK
     assert "lark-cli auth status --verify" in LARK_CLI_BOT_IDENTITY_CHECK
+    assert "bridge.profiles?.[activeProfile]" in LARK_CLI_BOT_IDENTITY_CHECK
     assert LARK_CLI_BOT_IDENTITY_CHECK.index(json_status) < LARK_CLI_BOT_IDENTITY_CHECK.index(plain_status)
     assert LARK_CLI_BOT_IDENTITY_CHECK.index(plain_status) < LARK_CLI_BOT_IDENTITY_CHECK.index("lark-cli auth status --verify")
     assert "LARK_CHANNEL=1 lark-cli auth status" not in LARK_CLI_BOT_IDENTITY_CHECK
@@ -87,6 +88,7 @@ def test_bind_lark_cli_repairs_wrapper_and_strict_bot_mode(tmp_path) -> None:
     bind_lark_cli(adapter, profile)
 
     assert "LCP managed lark-cli wrapper" in adapter.command
+    assert "config.profiles?.[activeProfile]?.accounts?.app" in adapter.command
     assert "lark-cli config bind --source lark-channel --identity bot-only --force" in adapter.command
     assert "lark-cli config default-as bot" in adapter.command
     assert "lark-cli config strict-mode bot" in adapter.command

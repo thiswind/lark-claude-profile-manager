@@ -3,6 +3,7 @@ import shlex
 from .docker_adapter import DockerAdapter, ExecResult
 from .lark_cli_wrapper import LARK_CLI_WRAPPER_INSTALL
 from .models import Profile
+from .npm_package import controlled_dependency_pack_install_command
 from .version_lock import dependency_npm_install_spec
 
 
@@ -22,6 +23,9 @@ def install_runtime(adapter: DockerAdapter, profile: Profile) -> list[ExecResult
     setup_commands = [
         f"mkdir -p /cache/npm /cache/tmp /cache/pnpm /cache/pip /logs {user.home}/.npm-global {user.home}/.local/share {user.home}/.config {user.home}/.cache && chown -R {user.uid}:{user.gid} /cache /logs {user.home}/.npm-global {user.home}/.cache && chown {user.uid}:{user.gid} {user.home} {user.home}/.local {user.home}/.local/share {user.home}/.config",
     ]
+    bridge_install = controlled_dependency_pack_install_command("lark-channel-bridge", "/cache/tmp/lark-channel-bridge.tgz")
+    if bridge_install is None:
+        bridge_install = f"npm install -g {shlex.quote(dependency_npm_install_spec('lark-channel-bridge'))} {NPM_CACHE_ARG}"
     user_commands = [
         "mkdir -p ~/.npm-global /cache/npm /cache/tmp",
         "npm config set cache /cache/npm --global",
@@ -29,7 +33,7 @@ def install_runtime(adapter: DockerAdapter, profile: Profile) -> list[ExecResult
         CLAUDE_NATIVE_FIXUP,
         f"npm install -g {shlex.quote(dependency_npm_install_spec('@larksuite/cli'))} {NPM_CACHE_ARG}",
         LARK_CLI_WRAPPER_INSTALL,
-        f"npm install -g {shlex.quote(dependency_npm_install_spec('lark-channel-bridge'))} {NPM_CACHE_ARG}",
+        bridge_install,
     ]
     git_identity_command = git_identity_setup_command(profile)
     if git_identity_command:

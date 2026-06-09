@@ -29,7 +29,9 @@ try {
   status = { defaultAs, identity, identities: { bot: { status: botStatus } } };
 }
 const app = Object.values(cli.apps || {})[0] || {};
-const bridgeAppId = bridge.accounts?.app?.id;
+const activeProfile = bridge.activeProfile;
+const bridgeProfile = activeProfile ? bridge.profiles?.[activeProfile] : undefined;
+const bridgeAppId = bridge.accounts?.app?.id || bridgeProfile?.accounts?.app?.id;
 const cliAppId = app.appId || status.appId || status.app?.appId || status.app?.id;
 const defaultAs = app.defaultAs || status.defaultAs;
 const identity = status.identity || defaultAs;
@@ -58,12 +60,24 @@ LARK_CLI_BOUND_CHECK = LARK_CLI_BOT_IDENTITY_CHECK
 
 
 def bind_lark_cli(adapter: DockerAdapter, profile: Profile) -> ExecResult:
+    schema_sync = "node -e " + shlex.quote("""
+const fs = require("fs");
+const path = process.env.HOME + "/.lark-channel/config.json";
+const config = JSON.parse(fs.readFileSync(path, "utf8"));
+const activeProfile = config.activeProfile;
+const app = activeProfile ? config.profiles?.[activeProfile]?.accounts?.app : undefined;
+if (!config.accounts?.app && app) {
+  config.accounts = Object.assign({}, config.accounts || {}, { app });
+  fs.writeFileSync(path, JSON.stringify(config, null, 2) + "\n");
+}
+""".strip())
     command = f"""
 if [ ! -s "$HOME/.lark-channel/config.json" ]; then
   echo "missing-config: run 'lcp bridge {profile.name} run' first to complete the QR-code setup"
   exit 2
 fi
 bash -lc {shlex.quote(LARK_CLI_WRAPPER_INSTALL)} &&
+{schema_sync} &&
 lark-cli config bind --source lark-channel --identity bot-only --force &&
 lark-cli config default-as bot &&
 lark-cli config strict-mode bot
