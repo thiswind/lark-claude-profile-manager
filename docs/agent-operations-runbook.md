@@ -50,8 +50,10 @@ Runtime command context:
 Core model:
 
 ```text
-one profile = one long-running Docker container = one Feishu/Lark bot = one bridge state = one lark-cli state
+one task domain = one profile = one long-running Docker container = one Feishu/Lark bot = one bridge state = one lark-cli state
 ```
+
+Treat LCP as a local profile orchestration system, not merely a Docker wrapper. The container is the long-running execution boundary; the profile owns bridge state, lark-cli state, logs, workspace mounts, and integration grants.
 
 Profile state lives outside the repository:
 
@@ -66,6 +68,14 @@ Profile state lives outside the repository:
 ```
 
 Do not commit runtime state.
+
+Maintainer notes, design scratchpads, and decision cards may live under the project submodule workspace:
+
+```text
+cursor-agent-team/ai_workspace/
+```
+
+That workspace is for development memory and design organization. It is not profile runtime state and must not contain copied credentials or profile-local auth snapshots.
 
 Host integration state lives with the profile:
 
@@ -95,6 +105,27 @@ Before GitHub operations:
 - Use `git` for local version control and normal commit/push mechanics.
 - GitHub authentication is expected to come from `gh auth git-credential`.
 - Do not update git config unless the user explicitly asks.
+
+## Maintenance decision framework
+
+Before changing LCP code, ask whether the issue is product correctness or operational repair.
+
+Use code changes for:
+
+1. Profile create/install correctness.
+2. Bridge and profile-local `lark-cli` default usability.
+3. Health verification that proves real user-facing capability.
+4. Version Lock enforcement and controlled dependency installation.
+5. Integration lifecycle semantics.
+
+Prefer runbook/manual operations for:
+
+1. Low-frequency profile state repair.
+2. Destructive credential resets.
+3. Stable-container in-place recovery.
+4. Environment-specific Docker Desktop, WSL, mount, or proxy incidents.
+
+Do not add silent repair code that resets credentials, rebuilds images, recreates containers, or mutates profile state without explicit user action.
 
 ## Host readiness checks
 
@@ -294,6 +325,34 @@ If verification fails:
 3. Do not accept `latest` for critical dependencies.
 4. For controlled fork dependencies, require repo, tag, and exact commit SHA.
 5. For bridge-class runtime work, confirm the install source resolves from Version Lock to an exact controlled commit SHA instead of upstream `latest` or an unqualified npm package.
+6. For controlled npm packages such as `lark-channel-bridge`, prefer clone/build/pack/install of the locked source over direct Git npm install if the package requires build artifacts.
+
+## Release 0.2.7 stable
+
+Use this section when preparing or checking the 0.2.7 stable line.
+
+Required release checks:
+
+1. Package version, `lcp.__version__`, tests, and `version_lock.json` all say `0.2.7`.
+2. `CHANGELOG.md` contains a dated `0.2.7` section.
+3. README install examples point to tag `0.2.7`.
+4. Version Lock verifies successfully.
+5. Focused tests and full test suite pass from the repository root.
+6. The release commit is pushed to `origin/main`.
+7. Tag `0.2.7` points to the release commit on GitHub.
+8. GitHub Release `0.2.7 Stable` exists and is not draft/prerelease.
+
+Recommended command sequence:
+
+```bash
+PYTHONPATH=src pytest
+PYTHONPATH=src python -m lcp.cli version-lock verify
+git status --short --branch
+git log --oneline --decorate --max-count=5
+git tag --list 0.2.7
+```
+
+Publish only after tests pass and the working tree contains only intended release changes.
 
 ## Manage the Host Admin Agent
 
@@ -353,8 +412,8 @@ lcp runtime apply --yes
 Default shared image tags are versioned with the LCP version and Ubuntu LTS suffix, for example:
 
 ```text
-lcp/base:0.2.6-ubuntu24.04
-lcp/runtime:0.2.6-ubuntu24.04
+lcp/base:0.2.7-ubuntu24.04
+lcp/runtime:0.2.7-ubuntu24.04
 ```
 
 Current base/runtime images include common troubleshooting tools:
@@ -365,9 +424,9 @@ tree, rg, jq, file, ip, ss, nc, dig, nslookup, traceroute
 
 Building shared images does not recreate existing profile containers. Use profile rebuild after reviewing its dry-run output. If an existing profile container does not have the current troubleshooting tools, rebuild that profile after reviewing the dry-run output.
 
-## Maintain 0.2.6 stable profile containers
+## Maintain 0.2.7 stable profile containers
 
-Treat existing 0.2.6 stable profile containers and images as long-lived operational assets.
+Treat existing 0.2.7 stable profile containers and images as long-lived operational assets.
 
 Default policy:
 

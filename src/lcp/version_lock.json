@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "lcpVersion": "0.2.6",
-  "generatedAt": "2026-06-06",
+  "lcpVersion": "0.2.7",
+  "generatedAt": "2026-06-12",
   "dependencies": [
     {
       "name": "feishu-claude-code-bridge",
@@ -25,7 +25,7 @@
         "Upstream now includes the package.json prepare script needed for npm Git installs to build dist artifacts."
       ],
       "validation": {
-        "lcpVersion": "0.2.6",
+        "lcpVersion": "0.2.7",
         "validatedAt": "2026-06-06",
         "profiles": [
           "teaching_daily"
@@ -47,7 +47,7 @@
       "version": "1.0.46",
       "patches": [],
       "validation": {
-        "lcpVersion": "0.2.6",
+        "lcpVersion": "0.2.7",
         "validatedAt": "2026-06-06",
         "profiles": [
           "teaching_daily"

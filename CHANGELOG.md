@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.2.7 - 2026-06-12
+
+- Install `cursor-agent-team` as a project submodule and add an AI workspace for durable maintainer notes, scratchpad drafts, and reusable decision cards.
+- Fix controlled `lark-channel-bridge` profile installation by building the pinned controlled fork, packing a tarball, and installing that local package instead of relying on a direct Git npm install path.
+- Support schema-v2 Lark Channel bridge configuration during profile-local `lark-cli` verification and binding, including minimal compatibility sync for active-profile app credentials.
+- Document shared MCP compatibility, stable profile maintenance, stale `lark-cli` repair, and runbook-first operational recovery guidance.
+- Reorganize README and the agent operations runbook around the current 0.2.7 stable operating model, Version Lock policy, bridge-first recovery, bot-only lark-cli identity, and profile-level integrations.
+
 ## 0.2.6 - 2026-06-06
 
 - Harden managed bridge recovery by running supervision through a root-owned `/usr/local/bin/lcp-bridge-sv` control process that restarts the profile-user bridge child after broad user-space kills.

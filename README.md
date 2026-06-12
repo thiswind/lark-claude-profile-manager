@@ -1,8 +1,23 @@
 # Lark Claude Profile Manager
 
-`lcp` 是一个本地命令行工具，用来管理多个 Claude Code + 飞书/Lark bridge 工作环境。
+`lcp` 是一个本地 profile 管理器，用来把多个长期运行的 Claude Code 工作区接入飞书/Lark 机器人。
 
-你可以为不同任务创建不同 profile。每个 profile 会有自己的容器、飞书 bridge 配置、`lark-cli` 状态和日志。
+它不只是 Docker wrapper。LCP 的核心模型是：
+
+```text
+one task domain = one profile = one long-running Docker container = one Feishu/Lark bot = one bridge state = one lark-cli state
+```
+
+你可以为教学、研发、运维、写作等不同任务域创建独立 profile。每个 profile 拥有自己的容器、工作目录、飞书/Lark bridge 配置、profile-local `lark-cli` 状态、日志和可选宿主机集成授权。
+
+## 0.2.7 stable 重点
+
+- 受控依赖通过 Version Lock 固定，关键 bridge 依赖从受控 fork 的精确 commit 构建/打包安装。
+- 托管 bridge 采用 root-owned supervisor + profile-user bridge child，优先保证飞书/Lark 入口恢复。
+- `lark-cli` 默认绑定为当前 profile 机器人的 `bot-only` / default `bot`；普通消息和附件发送不依赖用户 OAuth。
+- GitHub、Vercel、SSH、proxy 等能力是 profile-level integration grant，不是镜像内置凭据。
+- 稳定 profile 容器视为长期运行资产；低频恢复优先写入 runbook，避免把所有运维经验都变成自动代码。
+- 项目带有 `cursor-agent-team` 子模块和 `ai_workspace`，用于维护笔记、草稿、散卡和长期设计沉淀。
 
 ## 环境要求
 
@@ -18,10 +33,10 @@
 
 ## 安装
 
-默认使用 `pip` 从 GitHub 源码安装。建议安装发布标签版本。当前推荐 stable 版本是 `0.2.6`：
+默认使用 `pip` 从 GitHub 源码安装。建议安装发布标签版本。当前推荐 stable 版本是 `0.2.7`：
 
 ```bash
-python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.6'
+python -m pip install --user 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.7'
 ```
 
 如果希望始终安装当前主分支：
@@ -51,8 +66,8 @@ python -m pip install --user -e .[dev]
 其它安装方式也可以使用，但不是默认推荐路径：
 
 ```bash
-uv tool install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.6'
-pipx install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.6'
+uv tool install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.7'
+pipx install 'lark-claude-profile-manager @ git+https://github.com/thiswind/lark-claude-profile-manager.git@0.2.7'
 ```
 
 检查安装版本：
@@ -127,6 +142,14 @@ lcp host-admin start
 [Agent Operations Runbook](docs/agent-operations-runbook.md)
 
 这份手册面向智能体，不是普通用户教程。它定义了 profile/container/bridge/lark-cli/GitHub 的日常操作顺序、安全边界和失败处理规则。
+
+本仓库还安装了 `cursor-agent-team` 子模块。面向维护者的架构理解、临时草稿和可复用判断卡片放在：
+
+```text
+cursor-agent-team/ai_workspace/
+```
+
+这些内容用于维护和设计沉淀，不属于 profile 运行时状态。
 
 ## 快速开始
 
@@ -280,7 +303,7 @@ lcp version-lock verify
 - Version Lock 类似 `Gemfile.lock`，但锁定的是 LCP 的运行时集成边界。
 - 对高风险外部依赖，记录 thiswind-controlled repo、tag 和 exact commit SHA。
 - `verify` 会检查 lock 版本是否匹配当前 LCP 包版本，并拒绝 critical dependency 使用 `latest`。
-- Runtime 安装会从 Version Lock 解析 bridge-class 依赖，并使用受控仓库的 exact commit SHA 作为 npm Git 安装锚点；`lark-channel-bridge` 不再从浮动 npm 包源直接安装。
+- Runtime 安装会从 Version Lock 解析 bridge-class 依赖，并使用受控仓库的 exact commit SHA 作为锚点；对 `lark-channel-bridge`，LCP 会克隆受控 fork、安装 dev dependencies、运行 build、`npm pack` 出本地 tarball，再安装该 tarball，避免依赖浮动 npm 包源或脆弱的直接 Git npm install 路径。
 
 ### Shared images and runtime tools
 
@@ -295,8 +318,8 @@ lcp runtime apply --yes
 
 说明：
 
-- `image build-base` 管理 LCP 共享基础镜像，默认 tag 使用 LCP 版本和 Ubuntu LTS 后缀，例如 `lcp/base:0.2.6-ubuntu24.04`。
-- `runtime apply` 构建 LCP runtime 镜像，默认 tag 同样版本化，例如 `lcp/runtime:0.2.6-ubuntu24.04`，不会自动重建现有 profile 容器。
+- `image build-base` 管理 LCP 共享基础镜像，默认 tag 使用 LCP 版本和 Ubuntu LTS 后缀，例如 `lcp/base:0.2.7-ubuntu24.04`。
+- `runtime apply` 构建 LCP runtime 镜像，默认 tag 同样版本化，例如 `lcp/runtime:0.2.7-ubuntu24.04`，不会自动重建现有 profile 容器。
 - base/runtime 镜像默认包含常用排障工具，包括 `tree`、`rg`、`jq`、`file`、`ip`、`ss`、`nc`、`dig`、`nslookup` 和 `traceroute`。
 - 现有容器需要单独执行 `lcp profile rebuild <name> --dry-run`，确认后再 `--yes`。
 - 需要与宿主机认证或版本同步的工具，例如 `gh`、`vercel`，不会预装进 runtime 层，而是在对应 integration apply 时处理。
@@ -323,7 +346,7 @@ lcp bridge <name> bind-lark-cli
 - `restart`：重启后台 bridge 和容器；启动 bridge 前会重新绑定 profile-local `lark-cli`。
 - `bind-lark-cli`：手动把 profile-local `lark-cli` 绑定到当前 profile 的机器人，并修复为 `bot-only` / default `bot`。
 
-从 0.2.6 开始，托管 bridge 使用 root 持有的 `/usr/local/bin/lcp-bridge-sv` supervisor。bridge child 仍以 profile 普通用户运行；如果 child 被宽泛的 node kill 命令杀死，supervisor 会自动拉起新的 bridge child。当前 Agent 回合仍可能失败，但 Feishu/Lark 入口会恢复，用户可以再次发送消息继续。
+从 0.2.6 开始，托管 bridge 使用 root 持有的 `/usr/local/bin/lcp-bridge-sv` supervisor。bridge child 仍以 profile 普通用户运行；如果 child 被宽泛的 node kill 命令杀死，supervisor 会自动拉起新的 bridge child。当前 Agent 回合仍可能失败，但 Feishu/Lark 入口会恢复，用户可以再次发送消息继续。0.2.7 继续沿用这一稳定运行模型。
 
 LCP 管理的 `lark-cli` 默认只使用当前 profile 的机器人身份：
 
