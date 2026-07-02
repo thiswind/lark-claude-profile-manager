@@ -6,11 +6,8 @@ coverage/
 !.env.example
 .local-plan/
 .claude/
-.gitmodules
-cursor-agent-team/
 *.log
 .venv/
 __pycache__/
 .pytest_cache/
 *.egg-info/
-docs/wiki/
