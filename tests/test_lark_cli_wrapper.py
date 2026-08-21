@@ -34,6 +34,21 @@ def test_lark_cli_bot_identity_check_uses_plain_wrapped_lark_cli() -> None:
     assert "LARK_CHANNEL=1 lark-cli auth status" not in LARK_CLI_BOT_IDENTITY_CHECK
 
 
+def test_lark_cli_bot_identity_check_includes_real_api_probe() -> None:
+    """Issue #20: --verify checks the token, but a real API probe catches
+    app-credential-level failures (invalid_client / code 10003) that --verify
+    may miss when the bot token is still cached."""
+    assert "lark-cli im +chat-list --page-size 1" in LARK_CLI_BOT_IDENTITY_CHECK
+    assert "/tmp/lcp-lark-cli-api-probe.out" in LARK_CLI_BOT_IDENTITY_CHECK
+    # the grep ensures the JSON output contains "ok": true, not just exit code
+    assert '"ok"' in LARK_CLI_BOT_IDENTITY_CHECK
+    # API probe must come after --verify and before the node config parser
+    verify_idx = LARK_CLI_BOT_IDENTITY_CHECK.index("lark-cli auth status --verify")
+    probe_idx = LARK_CLI_BOT_IDENTITY_CHECK.index("lark-cli im +chat-list")
+    node_idx = LARK_CLI_BOT_IDENTITY_CHECK.index("node -e")
+    assert verify_idx < probe_idx < node_idx
+
+
 def test_lark_cli_wrapper_migrates_old_sample_wrapper_to_bin_target(tmp_path) -> None:
     bin_dir = tmp_path / "prefix" / "bin"
     bin_dir.mkdir(parents=True)

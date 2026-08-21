@@ -13,6 +13,10 @@ grep -q 'LCP managed lark-cli wrapper' "$(command -v lark-cli)" && \
  lark-cli auth status >/tmp/lcp-lark-cli-auth-status.out 2>/tmp/lcp-lark-cli-auth-status.err) && \
 (lark-cli auth status --verify >/tmp/lcp-lark-cli-auth-verify.out 2>/tmp/lcp-lark-cli-auth-verify.err || \
  { cat /tmp/lcp-lark-cli-auth-verify.out; cat /tmp/lcp-lark-cli-auth-verify.err >&2; exit 1; }) && \
+(lark-cli im +chat-list --page-size 1 >/tmp/lcp-lark-cli-api-probe.out 2>/tmp/lcp-lark-cli-api-probe.err || \
+ { cat /tmp/lcp-lark-cli-api-probe.out; cat /tmp/lcp-lark-cli-api-probe.err >&2; exit 1; }) && \
+(grep -q '"ok"[[:space:]]*:[[:space:]]*true' /tmp/lcp-lark-cli-api-probe.out || \
+ { echo "api probe: bot credentials not usable for API calls"; cat /tmp/lcp-lark-cli-api-probe.out; exit 1; }) && \
 node -e '
 const fs = require("fs");
 const home = process.env.HOME;

@@ -3,6 +3,7 @@ import shlex
 
 from .bridge import bridge_status
 from .docker_adapter import DockerAdapter
+from .integrations.service import IntegrationService
 from .lark_cli import LARK_CLI_BOT_IDENTITY_CHECK
 from .models import Profile
 
@@ -40,6 +41,24 @@ def verify_profile(adapter: DockerAdapter, profile: Profile, run_claude: bool = 
     run("bridge_help", "lark-channel-bridge --help >/tmp/lcp-bridge-help.txt && test -s /tmp/lcp-bridge-help.txt")
     runtime_status = bridge_status(adapter, profile)
     checks.append(CheckResult("bridge_runtime", runtime_status.running, runtime_status.detail))
+
+    integration_service = IntegrationService(adapter.store)
+    for name in sorted(profile.integrations.providers):
+        state = profile.integrations.providers[name]
+        if not state.desired.enabled:
+            continue
+        commands = integration_service.verify_commands(profile, name)
+        if not commands:
+            checks.append(CheckResult(f"integration:{name}", True, "no verification command"))
+            continue
+        outputs = []
+        all_ok = True
+        for command in commands:
+            result = adapter.exec(profile, command)
+            if result.exit_code != 0:
+                all_ok = False
+            outputs.append(result.output.strip())
+        checks.append(CheckResult(f"integration:{name}", all_ok, "; ".join(outputs)))
 
     return checks
 

@@ -40,6 +40,7 @@ def plan_profile_recover(store: LcpStore, adapter: DockerAdapter, profile: Profi
     ]
     actions = []
     if container:
+        actions.append(f"snapshot container writable layer to {store.snapshots_dir / profile.name}")
         actions.append(f"remove stale container: {profile.container.name}")
     actions.append(f"create replacement container from existing image: {profile.container.image}")
     actions.append("start replacement container without running in-container verification")
@@ -58,6 +59,11 @@ def recover_profile_container(store: LcpStore, adapter: DockerAdapter, profile: 
     with store.profile_lock(profile.name):
         container = adapter.get_container_or_none(profile)
         if container is not None:
+            try:
+                snapshot_path = adapter.snapshot(profile)
+                actions.append(f"snapshot saved: {snapshot_path}")
+            except Exception as exc:
+                actions.append(f"snapshot skipped: {exc}")
             container.remove(force=True)
             actions.append(f"removed stale container: {profile.container.name}")
         store.ensure_profile_dirs(profile.name)
