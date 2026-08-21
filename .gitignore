@@ -14,3 +14,6 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 docs/wiki/
+
+# Local-only design notes and process docs (maintenance knowledge, not product code)
+design/
