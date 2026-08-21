@@ -7,6 +7,7 @@ from .bridge import bridge_status, start_bridge, stop_bridge
 from .docker_adapter import DockerAdapter
 from .integrations.models import IntegrationVerifyResult
 from .integrations.service import IntegrationService
+from .lark_cli import bind_lark_cli
 from .models import Profile
 from .store import LcpStore
 
@@ -206,7 +207,10 @@ def rebuild_profile(store: LcpStore, adapter: DockerAdapter, profile: Profile) -
             store.save_profile(updated_profile)
             bridge_restored = False
             if bridge_was_running:
-                status = start_bridge(adapter, profile)
+                bind_result = bind_lark_cli(adapter, updated_profile)
+                if bind_result.exit_code != 0:
+                    raise RebuildError("lark-cli rebind failed", [bind_result.output])
+                status = start_bridge(adapter, updated_profile)
                 if not status.running:
                     raise RebuildError("bridge restart failed", [status.detail])
                 bridge_restored = True

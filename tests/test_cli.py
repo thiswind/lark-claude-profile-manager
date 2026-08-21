@@ -429,6 +429,67 @@ def test_profile_rm_removes_container_and_profile_state(monkeypatch, tmp_path: P
     assert not store.profile_dir("project1").exists()
 
 
+def test_profile_rm_tolerates_missing_container(monkeypatch, tmp_path: Path) -> None:
+    """H3: `profile rm` is the recovery path for stale state whose container
+    is already gone; it must not crash on stop_bridge when there is no container."""
+    store = make_store(tmp_path)
+    FakeAdapter.container = None
+    stopped = []
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+    monkeypatch.setattr(cli, "stop_bridge", lambda adapter, profile: stopped.append(profile.name))
+
+    result = runner.invoke(cli.app, ["profile", "rm", "project1", "--yes"])
+
+    assert result.exit_code == 0
+    assert stopped == []
+    assert "container already absent" in result.output
+    assert "removed profile state" in result.output
+    assert not store.profile_dir("project1").exists()
+
+
+def test_profile_list_tolerates_stopped_container(monkeypatch, tmp_path: Path) -> None:
+    """H2: docker exec against a stopped container raises 409; listing must
+    classify stopped containers instead of executing inside them."""
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer(status="exited")
+
+    def raising_exec(self, profile, command):
+        raise AssertionError("must not exec into a stopped container")
+
+    monkeypatch.setattr(FakeAdapter, "exec", raising_exec)
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "list"])
+
+    assert result.exit_code == 0
+    assert "exited" in result.output
+    assert "stopped" in result.output
+    FakeAdapter.container = None
+
+
+def test_profile_status_tolerates_stopped_container(monkeypatch, tmp_path: Path) -> None:
+    """H2: profile status must report bridge: stopped instead of crashing
+    with a Docker 409 when the container is not running."""
+    store = make_store(tmp_path)
+    FakeAdapter.container = FakeContainer(status="exited")
+
+    def raising_exec(self, profile, command):
+        raise AssertionError("must not exec into a stopped container")
+
+    monkeypatch.setattr(FakeAdapter, "exec", raising_exec)
+    monkeypatch.setattr(cli, "LcpStore", lambda: store)
+    monkeypatch.setattr(cli, "DockerAdapter", FakeAdapter)
+
+    result = runner.invoke(cli.app, ["profile", "status", "project1"])
+
+    assert result.exit_code == 0
+    assert "status: exited" in result.output
+    assert "bridge: stopped" in result.output
+    FakeAdapter.container = None
+
+
 def test_profile_create_uses_create_path(monkeypatch, tmp_path: Path) -> None:
     store = cli.LcpStore(tmp_path / ".lcp")
     FakeCreatorAdapter.created = []

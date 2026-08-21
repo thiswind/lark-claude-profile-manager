@@ -202,9 +202,11 @@ def _list_profiles() -> None:
         container = adapter.get_container_or_none(profile)
         container_status = container.status if container else "missing"
         bridge = "-"
-        if container:
+        if container and container.status == "running":
             status = bridge_status(adapter, profile)
             bridge = _bridge_state_label(status)
+        elif container:
+            bridge = "stopped"
         table.add_row(name, profile.container.name, container_status, bridge, profile_bot_identity(store, profile).label)
     console.print(table)
 
@@ -214,13 +216,18 @@ def _show_profile_status(name: str) -> None:
     profile = _load_profile_or_exit(store, name)
     adapter = DockerAdapter(store)
     container = _get_container_or_exit(adapter, profile)
-    status = bridge_status(adapter, profile)
     typer.echo(f"name: {profile.name}")
     typer.echo(f"container: {container.name}")
     typer.echo(f"status: {container.status}")
-    typer.echo(f"bridge: {_bridge_state_label(status)}")
+    if container.status == "running":
+        status = bridge_status(adapter, profile)
+        bridge_label = _bridge_state_label(status)
+    else:
+        status = None
+        bridge_label = "stopped"
+    typer.echo(f"bridge: {bridge_label}")
     typer.echo(f"bot: {profile_bot_identity(store, profile).label}")
-    if status.pid:
+    if status and status.pid:
         typer.echo(f"bridge pid: {status.pid}")
 
 
@@ -557,7 +564,8 @@ def _remove_profile_runtime(name: str, yes: bool) -> None:
     ):
         raise typer.Exit(1)
     adapter = DockerAdapter(store)
-    stop_bridge(adapter, profile)
+    if adapter.get_container_or_none(profile) is not None:
+        stop_bridge(adapter, profile)
     removed_container = adapter.remove_container(profile)
     if removed_container:
         typer.echo(f"removed container: {profile.container.name}")

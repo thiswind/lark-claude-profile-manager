@@ -60,7 +60,7 @@ LARK_CLI_BOUND_CHECK = LARK_CLI_BOT_IDENTITY_CHECK
 
 
 def bind_lark_cli(adapter: DockerAdapter, profile: Profile) -> ExecResult:
-    schema_sync = "node -e " + shlex.quote("""
+    schema_sync = "node -e " + shlex.quote(r"""
 const fs = require("fs");
 const path = process.env.HOME + "/.lark-channel/config.json";
 const config = JSON.parse(fs.readFileSync(path, "utf8"));

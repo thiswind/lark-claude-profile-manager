@@ -72,6 +72,7 @@ class FakeAdapter:
         self.started = False
         self.commands = []
         self.bridge_running = False
+        self.bridge_output = "stopped"
 
     def get_container(self, profile):
         return self.client.containers.get(profile.container.name)
@@ -96,7 +97,7 @@ class FakeAdapter:
     def exec(self, profile, command):
         self.commands.append(command)
         if "bridge-supervisor.pid" in command:
-            return ExecResult(0, "stopped")
+            return ExecResult(0, self.bridge_output)
         return ExecResult(0, "ok")
 
 
@@ -218,6 +219,37 @@ def test_rebuild_profile_rolls_back_when_integration_reapply_fails(monkeypatch, 
     assert "bad" in exc.value.recovery
     assert adapter.client.containers.created_containers[0].removed is True
     assert adapter.client.containers.by_name[profile.container.name] is old_container
+
+
+def test_rebuild_profile_rebinds_lark_cli_when_bridge_was_running(monkeypatch, tmp_path: Path) -> None:
+    """Issue #17: after rebuild, a bridge that was running must be re-bound
+    to lark-cli before restart, otherwise verify fails lark_cli_bot_identity."""
+    store = LcpStore(tmp_path / ".lcp")
+    profile = make_profile(tmp_path)
+    store.save_profile(profile)
+    adapter = FakeAdapter(store, FakeContainer(profile.container.name))
+    adapter.bridge_output = "running:101:102:root"
+    binds = []
+    monkeypatch.setattr(rebuild_module, "bind_lark_cli", lambda a, p: binds.append(p.name) or ExecResult(0, "bound"))
+
+    result = rebuild_profile(store, adapter, profile)
+
+    assert binds == ["project1"]
+    assert result.bridgeRestored is True
+
+
+def test_rebuild_profile_fails_when_lark_cli_rebind_fails(monkeypatch, tmp_path: Path) -> None:
+    store = LcpStore(tmp_path / ".lcp")
+    profile = make_profile(tmp_path)
+    store.save_profile(profile)
+    adapter = FakeAdapter(store, FakeContainer(profile.container.name))
+    adapter.bridge_output = "running:101:102:root"
+    monkeypatch.setattr(rebuild_module, "bind_lark_cli", lambda a, p: ExecResult(1, "bind failed"))
+
+    with pytest.raises(RebuildError) as exc:
+        rebuild_profile(store, adapter, profile)
+
+    assert "lark-cli rebind failed" in str(exc.value)
 
 
 def test_list_rollback_containers_filters_by_profile_prefix(tmp_path: Path) -> None:

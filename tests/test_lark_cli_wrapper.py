@@ -92,3 +92,29 @@ def test_bind_lark_cli_repairs_wrapper_and_strict_bot_mode(tmp_path) -> None:
     assert "lark-cli config bind --source lark-channel --identity bot-only --force" in adapter.command
     assert "lark-cli config default-as bot" in adapter.command
     assert "lark-cli config strict-mode bot" in adapter.command
+
+
+def test_bind_lark_cli_schema_sync_js_survives_escaping(tmp_path) -> None:
+    """Issue #26: the schema-sync node script must survive shlex quoting intact.
+
+    The JS payload is embedded in a Python string; if it is not a raw string,
+    the JS "\\n" literal becomes a real newline inside node -e, producing a
+    SyntaxError before lark-cli binding ever runs.
+    """
+    import shlex
+
+    profile = default_profile("project1", tmp_path / "Desktop", [], "amd64", "thiswind", 1000, 1000)
+    adapter = FakeAdapter()
+
+    bind_lark_cli(adapter, profile)
+
+    marker = "node -e "
+    segment = adapter.command[adapter.command.index(marker):]
+    tokens = shlex.split(segment)
+    assert tokens[0] == "node" and tokens[1] == "-e"
+    js = tokens[2]
+
+    assert '+ "\\n"' in js, "JS newline literal must remain escaped inside the node payload"
+    assert 'writeFileSync(path, JSON.stringify(config, null, 2) + "\\n")' in js
+    # the payload must not contain a bare real newline inside the string literal
+    assert 'JSON.stringify(config, null, 2) + "\n"' not in js
